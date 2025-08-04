@@ -1,6 +1,6 @@
 import V0Theory.TwoSortedModelTheory.Basic
 import V0Theory.TwoSortedModelTheory.Syntax
--- import V0Theory.TwoSortedModelTheory.Complexity
+import V0Theory.TwoSortedModelTheory.Complexity
 -- import V0Theory.TwoSortedModelTheory.Semantics
 import Mathlib.Tactic.Linarith
 
