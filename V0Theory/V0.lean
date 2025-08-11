@@ -5,6 +5,14 @@ import V0Theory.TwoSortedModelTheory.Complexity
 import Mathlib.Tactic.Linarith
 
 
+
+-- How to define special tactic language for easier proving in object logic?
+-- concept: https://lean-forward.github.io/lean-together/2019/slides/hudon.pdf
+-- shitty: https://github.com/unitb/temporal-logic/blob/amsterdam-talk/src/temporal_logic/tactic.lean
+-- real?: https://github.com/leanprover-community/iris-lean/blob/master/src/Iris/ProofMode/Display.lean
+
+
+
 -- Here, we use the idea described in section 4.5 Single-sorted logic interpretation
 -- (Draft p.82 = p.93 of pdf)
 -- to reason about two-sorted logic in a single-sorted one.
