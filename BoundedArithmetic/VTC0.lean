@@ -1,0 +1,2 @@
+-- Cook Nguyen official release, p. 341 of pdf: multiplication in VTC0
+-- file:///home/maryjane/papers/CookNguyen.pdf

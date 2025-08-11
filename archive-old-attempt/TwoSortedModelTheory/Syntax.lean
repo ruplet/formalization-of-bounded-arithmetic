@@ -1,8 +1,8 @@
 -- https://github.com/leanprover-community/mathlib4/blob/0c55a410bbb4c0f54eb649c14f25d4a89bb2a49e/Mathlib/ModelTheory/Syntax.lean
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Fin.Basic
-import V0Theory.TwoSortedModelTheory.Basic
--- import V0Theory.TwoSortedModelTheory.LanguageMap
+import BoundedArithmetic.BoundedModelTheory.Basic
+-- import BoundedArithmetic.BoundedModelTheory.LanguageMap
 import Mathlib.Algebra.Order.Group.Nat
 import Mathlib.Logic.Nonempty
 import Mathlib.Data.Multiset.Basic
