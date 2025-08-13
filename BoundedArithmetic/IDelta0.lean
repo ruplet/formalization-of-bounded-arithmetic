@@ -1,262 +1,278 @@
+import Lean
 import BoundedArithmetic.BoundedModelTheory.Basic
 import BoundedArithmetic.BoundedModelTheory.Syntax
 import BoundedArithmetic.BoundedModelTheory.Complexity
--- import BoundedArithmetic.BoundedModelTheory.Semantics
+import BoundedArithmetic.BoundedModelTheory.Semantics
 
-namespace L2
+open Lean Elab Term Meta Syntax
 
-inductive Functions0 where
-| zero
-| one
-deriving BEq, DecidableEq
+universe u
+variable (a : Type u)
 
-inductive Functions2 where
-| add
-| mul
-deriving BEq, DecidableEq
+namespace FirstOrder
 
-inductive Relations2 where
--- | eqnum
-| leq
-deriving BEq, DecidableEq
+-- this style of definition is inspired by https://github.com/leanprover-community/mathlib4/blob/2cb771d3006e8b7579f66990fed1b433bf2e7fed/Mathlib/ModelTheory/Arithmetic/Presburger/Basic.lean
+-- Definition 2.3, page 12 of draft (23 of pdf);
+--   + remark in section 3.1, top of page 34 of draft (45 of pdf)
+-- note: the equality relation is present by default in Mathlib.ModelTheory
+-- it is explicit in Cook and Nguyen, but it doesn't seem to lead to any inconsistencies
+-- note: checking if 'x = y' is not always trivial; if x and y are long bit-strings,
+-- encoded as lists (e.g. 3 encoded as S(S(S(Z)))), checking for their equality
+-- is linear-time, thus not trivial at all. But here we only use equality in proofs
+-- and the only way to assert equality is to prove it from axioms. So it seems like we'll
+-- never run into the problem of having to brute-force checking for equality
+inductive PeanoFunc : Nat -> Type
+  | zero : PeanoFunc 0
+  | one : PeanoFunc 0
+  | add : PeanoFunc 2
+  | mul : PeanoFunc 2
+  deriving DecidableEq
 
-def Functions (arity : Nat) : Type :=
-  match arity with
-  | 0 => Functions0
-  | 2 => Functions2
-  | _ => Empty
+inductive PeanoRel : Nat -> Type
+  | leq : PeanoRel 2
+  deriving DecidableEq
 
-
-def Relations (arity : Nat) : Type :=
-  match arity with
-  | 2 => Relations2
-  | _ => Empty
-
-def Lang : FirstOrder.Language :=
-{ Functions := Functions,
-  Relations := Relations
+def Language.peano : Language :=
+{ Functions := PeanoFunc,
+  Relations := PeanoRel
 }
 
-open FirstOrder.Language (Term BoundedFormula Formula Sentence)
+namespace Language
 
--- def isOpen {a} [DecidableEq a] {n} (sentence: Lang.BoundedFormula a n) : Bool :=
--- match sentence with
--- | .falsum => true
--- | .equal _ _ => false -- please use our internal equation symbol!
--- | .rel _ _ => true
--- | .imp pre post => isOpen pre ∧ isOpen post
--- | .all _ => false
+namespace Formula
+/-- Computable version of FirstOrder.Language.Formula.iAlls -/
+def iAllsComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  (BoundedFormula.relabel (fun a => Sum.map id e a) φ).alls
 
-def isOpen {a} {n} [DecidableEq a] (formula : Lang.BoundedFormula a n) := FirstOrder.Language.BoundedFormula.IsQF formula
+def iAllsComputableEmpty {L : Language} {β} {k} (e : β ≃ Fin k) (φ : L.Formula β) : L.Formula Empty :=
+  (BoundedFormula.relabel (fun a => Sum.inr $ e a) φ).alls
+end Formula
 
-def contains_var_zero {a} [DecidableEq a] {n} (t : Lang.Term (a ⊕ Fin n)) : Bool :=
-  if h_eq : n = 0 then
-    false
-  else
-    (Sum.inr $ @Fin.mk n 0 (Nat.pos_of_ne_zero h_eq)) ∈ t.varFinset
+namespace peano
 
-def is_x_le_t_imp_A {a} [DecidableEq a] {n} [NeZero n] (f : Lang.BoundedFormula a n) : Bool :=
-  match f with
-  | BoundedFormula.imp pre _ =>
-    match pre with
-    | @BoundedFormula.rel _ _ _ l R ts =>
-      if h_eq_2 : l = 2 then
-        let relationLeq : Lang.Relations 2 := Relations2.leq
-        let R_as_rel2 : Relations2 := Eq.mp (congrArg Lang.Relations h_eq_2) R
-        let term_vec_type (k : ℕ) := Fin k → Term Lang (a ⊕ (Fin n))
-        let ts_as_fin2 : term_vec_type 2 := Eq.mp (congrArg term_vec_type h_eq_2) ts
-        if R_as_rel2 == relationLeq then
-          let x_term := ts_as_fin2 (0 : Fin 2)
-          let t_term := ts_as_fin2 (1 : Fin 2)
-          -- Check if x_term is the de Bruijn index 0
-          (match x_term with
-           | Term.var (Sum.inr j) => j == (Fin.ofNat n 0)
-           | _ => false) &&
-          -- Check if t_term does NOT contain the de Bruijn index 0
-          !(contains_var_zero t_term)
-        else false
-      else false
-    | _ => false
-  | _ => false
+instance : Zero (peano.Term a) where
+  zero := Constants.term .zero
 
-def isDelta0 {a} [DecidableEq a] {n} [NeZero n] : Lang.BoundedFormula a n -> Bool
-| .falsum => true
-| .equal _ _=> false
-| .rel _ _ => true
-| .imp pre post => isDelta0 pre ∧ isDelta0 post
-| .ex phi =>
-  (is_x_le_t_imp_A phi) ∧ (isDelta0 phi) -- Recursively check inner formula
-| .all phi =>
-  (is_x_le_t_imp_A phi) ∧ (isDelta0 phi)
+instance : One (peano.Term a) where
+  one := Constants.term .one
 
--- def relationEq : Lang.Relations 2 := Relations2.eqnum
-def relationLeq : Lang.Relations 2 := Relations2.leq
+instance : Add (peano.Term a) where
+  add := Functions.apply₂ .add
 
--- --- Sentence Construction Helpers ---
--- For sentences, α is Empty, and n is 0.
+instance : Mul (peano.Term a) where
+  mul := Functions.apply₂ .mul
 
--- A variable term (for current context `n`).
--- For sentences, `n = 0`, so `Fin 0` is `Empty`.
--- If we're inside `all {n} f`, then `f` has context `n+1`, so `Fin (n+1)`.
-def var_term {k : ℕ} (idx : Fin k) : Term Lang (Empty ⊕ (Fin k)) := Term.var (Sum.inr idx)
+instance : SMul ℕ (peano.Term a) where
+  smul := nsmulRec
+@[simp] theorem zero_nsmul {t : peano.Term a} : 0 • t = 0 := rfl
+@[simp] theorem succ_nsmul {t : peano.Term a} {n : ℕ} : (n + 1) • t = n • t + t := rfl
 
--- A constant term. Now `k` is a free variable, so Lean can infer it.
--- This term type is `Term Lang (α ⊕ (Fin k))`
-def const_term {α} {k : ℕ} (c : Lang.Functions 0) : Term Lang (α ⊕ (Fin k)) := Term.func c ![]
+-- enable converting Nat to objects of Peano
+instance : NatCast (peano.Term a) where
+  natCast := Nat.unaryCast
+-- @[simp, norm_cast] theorem natCast_zero : (0 : ℕ) = (0 : peano.Term a) := rfl
+-- @[simp, norm_cast] theorem natCast_succ (n : ℕ) : (n + 1 : ℕ) = (n : peano.Term a) + 1 := rfl
+-- @[simp, norm_cast] theorem natCast_add_assoc (n : ℕ) : (n + 1 : ℕ) = (n : peano.Term a) + 1 := rfl
 
--- A term from a binary function (e.g., add, mul). `k` is also generic here.
-def binary_func_term {α} {k : ℕ} (f : Lang.Functions 2) (t1 t2 : Term Lang (α ⊕ (Fin k))) : Term Lang (α ⊕ (Fin k)) := Term.func f ![t1, t2]
+-- inspired by https://github.com/leanprover-community/mathlib4/blob/cff2a6ea669abe2e384ea4c359f20ee90a5dc855/Mathlib/ModelTheory/Syntax.lean#L344
+/-- The inequality of two terms as a bounded formula -/
+def Term.bdNeq {a} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+  ∼(t1 =' t2)
 
--- Atomic formulas
-def eq_form {k : ℕ} (t1 t2 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.equal t1 t2
+/-- The less-than-or-equal relation of two terms as a bounded formula -/
+def Term.bdLeq {a} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+  Relations.boundedFormula₂ FirstOrder.PeanoRel.leq t1 t2
 
-def leq_form {k : ℕ} (t1 t2 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.rel relationLeq ![t1, t2]
+-- inspired by https://github.com/leanprover-community/mathlib4/blob/cff2a6ea669abe2e384ea4c359f20ee90a5dc855/Mathlib/ModelTheory/Syntax.lean#L732
+@[inherit_doc] scoped[FirstOrder] infixl:88 " ≠' " => Language.peano.Term.bdNeq
+@[inherit_doc] scoped[FirstOrder] infixl:88 " <=' " => Language.peano.Term.bdLeq
 
-def falsum_form {a} {k : ℕ} : Lang.BoundedFormula a k := BoundedFormula.falsum
+/-- The less-than relation of two terms as a bounded formula -/
+def Term.bdLt {a} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+  (t1 <=' t2) ⊓ ∼(t1 =' t2)
 
-def imp_form {a} {k : ℕ} (f1 f2 : BoundedFormula Lang a k) : BoundedFormula Lang a k :=
-  BoundedFormula.imp f1 f2
-
-def all_form {a} {k : ℕ} (f : BoundedFormula Lang a (k + 1)) : BoundedFormula Lang a k :=
-  BoundedFormula.all f
-
--- --- Example Sentences ---
-
--- 1. Open Sentences (no quantifiers)
-
-def funcZero : Lang.Functions 0 := Functions0.zero
-def funcOne : Lang.Functions 0 := Functions0.one
-def funcAdd : Lang.Functions 2 := Functions2.add
-def funcMul : Lang.Functions 2 := Functions2.mul
-
--- 0 = 1 (false)
-def open_s_1 : Sentence Lang :=
-  eq_form (const_term funcZero) (const_term funcOne)
-
--- 0 <= 0 (true)
-def open_s_2 : Sentence Lang :=
-  leq_form (const_term funcZero) (const_term funcZero)
-
--- (0 <= 1) -> (1 = 0)
-def open_s_3 : Sentence Lang :=
-  imp_form (leq_form (const_term funcZero) (const_term funcOne))
-           (eq_form (const_term funcOne) (const_term funcZero))
-
--- `x = 0` (deep embedding)
-def open_x_eq_zero : BoundedFormula Lang Empty 1 :=
-  eq_form (var_term (Fin.mk 0 Nat.zero_lt_one)) (const_term (k := 1) funcZero)
-
--- `x ≤ 0` (deep embedding)
-def open_x_le_zero_form : BoundedFormula Lang Empty 1 :=
-  leq_form (var_term (Fin.mk 0 Nat.zero_lt_one)) (const_term (k := 1) funcZero)
-
--- 2. Delta0 Sentences (only bounded quantifiers)
-
--- ∀x (x <= 1 -> x = 0)
--- Here, x corresponds to the de Bruijn index 0 in the inner formula.
--- '1' is the constant `funcOne`.
-def delta0_s_1 : Sentence Lang :=
-  all_form (imp_form (leq_form (var_term (0 : Fin 1)) (const_term funcOne))
-                     (eq_form (var_term (0 : Fin 1)) (const_term funcZero)))
-
--- ∀x (x <= 1 -> (x = 0 -> x <= 1))
-def delta0_s_2 : Sentence Lang :=
-  all_form (imp_form (leq_form (var_term (0 : Fin 1)) (const_term funcOne))
-                     (imp_form (eq_form (var_term (0 : Fin 1)) (const_term funcZero))
-                               (leq_form (var_term (0 : Fin 1)) (const_term funcOne))))
-
--- ∀x (x <= y -> x = 0) -- This is NOT a sentence because 'y' is a free variable (unless y is 0 here)
--- Let's make it a proper sentence: ∀x (x <= 1 + 1 -> x = 0)
--- The term `1 + 1` should not contain `x` (de Bruijn index 0).
-def term_one_plus_one : Term Lang (Empty ⊕ (Fin 1)) :=
-  binary_func_term funcAdd (const_term funcOne) (const_term funcOne)
-
-def delta0_s_3 : Sentence Lang :=
-  all_form (imp_form (leq_form (var_term (0 : Fin 1)) term_one_plus_one)
-                     (eq_form (var_term (0 : Fin 1)) (const_term funcZero)))
+@[inherit_doc] scoped[FirstOrder] infixl:88 " <' " => Language.peano.Term.bdLt
 
 
--- 3. Pi1 Sentences (block of universal quantifiers, inner formula is Delta0)
-
--- ∀x (x = x) -- This is Pi1 (vacuously Delta0 inside) and also not Delta0 (unbounded quantifier)
-def pi1_s_1 : Sentence Lang :=
-  all_form (eq_form (var_term (0 : Fin 1)) (var_term (0 : Fin 1)))
-
--- ∀x (∀y (x <= y -> x = x)) -- This is Pi1 (inner is Delta0, outer is unbounded)
--- The `(0 : Fin 1)` refers to `y`, `(1 : Fin 2)` refers to `x` in the `Fin 2` context
-def pi1_s_2 : Sentence Lang :=
-  all_form (all_form (imp_form (leq_form (var_term (1 : Fin 2)) (var_term (0 : Fin 2))) -- x <= y
-                                (eq_form (var_term (1 : Fin 2)) (var_term (1 : Fin 2))))) -- x = x
-
--- Let's make a Pi1 where the inner formula is a full Delta0 formula with its own bounded quantifier
--- ∀z (∀x (x <= 1 -> x = 0)) -- This is Pi1, the outermost `z` is unbounded
-def pi1_s_3 : Sentence Lang :=
-  all_form (all_form (imp_form (leq_form (var_term (0 : Fin 2)) (const_term funcOne))
-                                (eq_form (var_term (0 : Fin 2)) (const_term funcZero))))
-
--- --- Test Cases ---
-
-theorem ex1 : isOpen open_s_1 := by {
-  unfold open_s_1 eq_form
-  apply FirstOrder.Language.BoundedFormula.IsQF.of_isAtomic
-  apply FirstOrder.Language.BoundedFormula.IsAtomic.equal
-}
-
--- -- #eval isOpen open_s_1   -- Expected: true
--- #eval isDelta0 open_s_1 -- Expected: true (open formulas are vacuously Delta0)
-
--- #eval isOpen open_s_2   -- Expected: true
--- #eval isDelta0 open_s_2 -- Expected: true
-
--- #eval isOpen open_s_3   -- Expected: true
--- #eval isDelta0 open_s_3 -- Expected: true
-
--- #eval isOpen open_x_eq_zero
--- #eval isDelta0 open_x_eq_zero
-
--- #eval isOpen open_x_le_zero_form
--- #eval isDelta0 open_x_le_zero_form
-
--- #eval isOpen delta0_s_1   -- Expected: false
--- #eval isDelta0 delta0_s_1 -- Expected: true
-
--- #eval isOpen delta0_s_2   -- Expected: false
--- #eval isDelta0 delta0_s_2 -- Expected: true
-
--- #eval isOpen delta0_s_3   -- Expected: false
--- #eval isDelta0 delta0_s_3 -- Expected: true
-
--- #eval isOpen pi1_s_1    -- Expected: false
--- #eval isDelta0 pi1_s_1    -- Expected: false (unbounded quantifier)
-
--- #eval isOpen pi1_s_2    -- Expected: false
--- #eval isDelta0 pi1_s_2    -- Expected: false (outer quantifier is unbounded)
-
--- #eval isOpen pi1_s_3    -- Expected: false
--- #eval isDelta0 pi1_s_3    -- Expected: false (outermost quantifier is unbounded)
+-- declare_syntax_cat logic_expr
+-- scoped syntax ident : logic_expr
+-- scoped syntax logic_expr " -> " logic_expr : logic_expr
+-- scoped syntax "(" logic_expr ")" : logic_expr
+-- scoped syntax "[Peano| " logic_expr "]" : term
 
 
--- Section 3.1 Peano Arithmetic (Draft, page 34 (45 of pdf))
+-- scoped elab_rules : term
+--   | `([Logic| $e:logic_expr]) => elabTerm e none
+--   | `(logic_expr| $i:ident) => do
+--       let nameExpr ← Term.elabTerm i none
+--       return mkApp (mkConst ``Formula.var) nameExpr
 
+--   | `(logic_expr| $p:logic_expr -> $q:logic_expr) => do
+--       let lhs ← elabTerm (← `([Logic| $p])) none
+--       let rhs ← elabTerm (← `([Logic| $q])) none
+--       return mkApp2 (mkConst ``Formula.imp) lhs rhs
+
+--   | `(logic_expr| ($p)) => do
+--       elabTerm (← `([Logic| $p])) none
+
+end peano
+
+namespace BoundedFormula
+
+/-- Notes about de Bruijn indices as used in Mathlib.ModelTheory
+  Take a look at how is BoundedFormula.Realize implemented:
+  `| _, all f, v, xs => ∀ x : M, Realize f v (snoc xs x)`
+
+  Recall that  `Fin.snoc xs x` takes a tuple `xs : Fin n -> SomeType` and turns
+  it into a tuple with `x` appended at the end,
+  i.e. `xs' : Fin (n + 1) -> SomeType` with `n` mapped into `x`
+
+  Now, how is BoundedFormula.relabel implemented?
+  Not the way we want - we can only substitute a free var with a specific term,
+  but the term has to be different, depending on the quantifier depth of
+  the place where the free var occurs in the ofrmua
+
+  But: Mathlib.ModelTheory offers us constantsVarsEquiv function!
+  e.g. to move free vars into language constants: constantsVarsEquiv.symm phi.alls
+--/
+
+inductive DisplayedFV1 | x
+inductive DisplayedFV2 | x | y
+inductive DisplayedFV3 | x | y | z
+
+-- this could easily be computable!! but Equiv.ofBijective is noncomputable!
+noncomputable def DisplayedFV1EquivFin1 : (DisplayedFV1 ≃ Fin 1) :=
+  Equiv.ofBijective
+    (fun _ => 0)
+    (by
+      simp only [Function.Bijective, Function.Injective, Function.Surjective]
+      constructor
+      · intro _ _ h
+        exact h
+      · intro b
+        apply Fin.eq_zero at b
+        rw [b]
+        exists DisplayedFV1.x
+    )
+
+-- expect 1 displayed free variable (`x`), thus DisplayedFV1
+-- but we can have more free vars - we `forall` over them!
+noncomputable def mkInductionSentence {n} {a} {k} (h : a ≃ Fin k) (phi: peano.BoundedFormula (DisplayedFV1 ⊕ a) n) :=
+  (phi.alls.iAllsComputable h).iAllsComputableEmpty DisplayedFV1EquivFin1
+
+-- Display a free variable in -/
+inductive NameOrSpecial (T : Type u)
+| standard (_ : T) : NameOrSpecial T
+| special : NameOrSpecial T
+
+/-- Helper to quantify over a free variable, which Mathlib.ModelTheory was not designed for -/
+def existsSpecial {a} {L : FirstOrder.Language} (f : L.Formula (NameOrSpecial a)) : L.Formula a :=
+  let relabel_fun {x} : NameOrSpecial a -> a ⊕ Fin (x + 1) :=
+    fun fvName =>
+      match fvName with
+        | .standard a' => Sum.inl a'
+        | .special => Sum.inr $ Fin.ofNat (x + 1) x
+  let f_relabeled := f.mapTermRel
+    (fun _ t => t.relabel (Sum.elim relabel_fun (Sum.inr ∘ Fin.castSucc))) -- ft
+    (fun _ => id) -- fr
+    (fun x => castLE (by rfl)) -- h
+  ex f_relabeled
+
+
+-- TA MASZYNERIA JEST NIEPOPRAWNA! formuła phi := `All.$0 neq 0` jest na level 0, ale
+-- nie mozemy teraz na zrobić phi ⊓ psi, gdzie psi := `$0 neq $1` i skwantyfikować
+-- na pałę `All.All. phi ⊓ psi`!
+-- a może jest?
+
+/-- Helper for building quantified formulas without messing up the de Bruijn binding -/
+-- def namedEx {a} {n} {L : FirstOrder.Language} (f : L.BoundedFormula (NameOrSpecial a) n) : L.BoundedFormula a n :=
+--   let relabel_fun {x} : NameOrSpecial a -> a ⊕ Fin (x + 1) :=
+--     fun fvName =>
+--       match fvName with
+--         | .standard a' => Sum.inl a'
+--         | .special => Sum.inr $ Fin.ofNat (x + 1) x
+--   let f_relabeled := f.mapTermRel
+--     (fun _ t => t.relabel (Sum.elim relabel_fun (Sum.inr ∘ Fin.castSucc))) -- ft
+--     (fun _ => id) -- fr
+--     (fun x => castLE (by rfl)) -- h
+--   ex f_relabeled
+
+-- def namedAll {a} {n} {L : FirstOrder.Language} (f : L.BoundedFormula (NameOrSpecial a) n) : L.BoundedFormula a n :=
+--   let relabel_fun {x} : NameOrSpecial a -> a ⊕ Fin (x + 1) :=
+--     fun fvName =>
+--       match fvName with
+--         | .standard a' => Sum.inl a'
+--         -- if `phi` is at level `n + 1`, then `n` (highest index) is the deBruijn ind of `x`
+--         | .special => Sum.inr $ Fin.ofNat (x + 1) x
+--   let f_relabeled := f.mapTermRel
+--     (fun _ t => t.relabel (Sum.elim relabel_fun (Sum.inr ∘ Fin.castSucc))) -- ft
+--     (fun _ => id) -- fr
+--     (fun x => castLE (by rfl)) -- h
+--   all f_relabeled
+
+-- Definition 3.7, page 36 of draft (47 of pdf)
+abbrev isOpen {a} {n} [DecidableEq a] (formula : peano.BoundedFormula a n) := FirstOrder.Language.BoundedFormula.IsQF formula
+
+-- Definition 3.7, page 36 of draft (47 of pdf)
+-- + Definition 3.6, page 35 of draft (46 of pdf)
+inductive IsDelta0 {a} : {n : Nat} -> peano.BoundedFormula a n -> Prop
+| of_isQF {phi} (h : BoundedFormula.IsQF phi) : IsDelta0 phi
+| imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
+| bdEx {n}
+  {phi : peano.BoundedFormula a (n + 1)}  -- `x` is represented by label `Sum.inr n`
+  {t : peano.Term (a ⊕ Fin n)} -- 'If the variable `x` does not occur in the term `t`'
+  (h : IsDelta0 phi)
+  :
+  -- TODO: make it work in this alternative way
+  -- IsDelta0 $ namedEx $
+  --   ((Term.var (Sum.inl $ NameOrSpecial.special)) <=' (t.relabel $ Sum.map (fun n => NameOrSpecial.standard n) (Fin.succEmb n))) ⊓ phi
+  IsDelta0 $ ∃' (
+    (
+      -- if `phi` is at level `n + 1`, then `n` (highest index) is the deBruijn ind of `x`
+      (&(Fin.ofNat (n + 1) n))  -- lift `n` into Term.var; this denotes just `x`
+      <='
+      (t.relabel $ Sum.map id (Fin.succEmb n))  -- lift `t` from lv `n` to lv `n + 1`
+    )
+    ⊓ phi
+  )
+
+| bdAll {n}
+  {phi : peano.BoundedFormula a (n + 1)}
+  {t : peano.Term (a ⊕ Fin n)} -- 'If the variable `x` does not occur in the term `t`'...
+  (h : IsDelta0 phi)
+  :
+  IsDelta0 $ ∀' (
+    (&(Fin.ofNat (n + 1) n)) <=' (t.relabel $ Sum.map id (Fin.succEmb n))
+    ⟹ phi
+  )
+
+end BoundedFormula
+
+def x := (var (Sum.inr 0) : peano.Term (Empty ⊕ Fin 1))
+
+protected def B1_ax : peano.Sentence := ∀' (Term.func PeanoFunc.zero)  ≠' Constants.zero
+
+class BASICModel {M : Type*} [h : peano.Structure M] where
+  B1 : M ⊨ BoundedFormula.namedAll ((x + h.funMap) ≠' 0)
+
+  -- B1 : ∀ (x : M), (x + 1) ≠' 0
+
+
+-- Section 3.1 Peano Arithmetic; draft page 34 (45 of pdf)
 structure BASICModel where
-  -- Sorts
-  num    : Type          -- First sort: natural numbers
+  num : Type
 
-  -- Functions and predicates for num
-  zero   : num
-  one    : num
-  add    : num → num → num
-  mul    : num → num → num
-  leq    : num → num → Prop
-  -- eqnum  : num → num → Prop := fun x y => x = y
+  zero : num
+  one : num
+  add : num -> num -> num
+  mul : num -> num -> num
+  leq : num -> num -> Prop
 
   -- B1. x + 1 ≠ 0
   B1 : ∀ (x : num), add x one ≠ zero
 
   -- B2. x + 1 = y + 1 ⊃ x = y
-  B2 : ∀ (x y : num), add x one = add y one → x = y
+  B2 : ∀ (x y : num), add x one = add y one -> x = y
 
   -- B3. x + 0 = x
   B3 : ∀ (x : num), add x zero = x
@@ -271,7 +287,7 @@ structure BASICModel where
   B6 : ∀ (x y : num), mul x (add y one) = add (mul x y) x
 
   -- B7. (x ≤ y ∧ y ≤ x) ⊃ x = y
-  B7 : ∀ (x y : num), leq x y → leq y x → x = y
+  B7 : ∀ (x y : num), leq x y -> leq y x -> x = y
 
   -- B8. x ≤ x + y
   B8 : ∀ (x y : num), leq x (add x y)
@@ -280,33 +296,38 @@ structure BASICModel where
   C : add zero one = one
 
 
-instance BASICModel_Structure (M : BASICModel) : Lang.Structure M.num :=
+instance BASICModel_Structure (M : BASICModel) : peano.Structure M.num :=
 {
-  -- Carrier := fun _ => M.num,
   funMap := fun {arity} f =>
     match arity, f with
-    | 0, Functions0.zero => fun _ => M.zero
-    | 0, Functions0.one => fun _ => M.one
-    | 2, Functions2.add => fun args => M.add (args 0) (args 1)
-    | 2, Functions2.mul => fun args => M.mul (args 0) (args 1)
+    | 0, .zero => fun _ => M.zero
+    | 0, .one => fun _ => M.one
+    | 2, .add => fun args => M.add (args 0) (args 1)
+    | 2, .mul => fun args => M.mul (args 0) (args 1)
 
   RelMap := fun {arity} r =>
     match arity, r with
-    -- | 2, Relations2.eqnum => fun args => M.eqnum (args 0) (args 1)
-    | 2, Relations2.leq => fun args => M.leq (args 0) (args 1)
+    | 2, .leq => fun args => M.leq (args 0) (args 1)
 }
 
-def realize_at : forall {n}, (M : BASICModel) -> Lang.BoundedFormula Empty (n + 1) -> M.num -> Prop
-| 0, M, phi, term => @phi.Realize Lang M.num (BASICModel_Structure M) _ _ (Empty.elim) ![term]
+def realize_at : forall {n}, (M : BASICModel) -> peano.BoundedFormula Empty (n + 1) -> M.num -> Prop
+| 0, M, phi, term => @phi.Realize peano M.num (BASICModel_Structure M) _ _ (Empty.elim) ![term]
 | _ + 1, M, phi, term => realize_at M phi.all term
+
+-- Definition 3.4 (Induction Scheme), p. 35 od draft (46 of PDF)
+-- Note that `phi(x)` is permitted to have free variables other than `x`
+-- This means that ultimately we need to take universal closure of the
+-- resulting Bounded Formula, to get a Sentence (no free vars)
+
+)
 
 structure IOPENModel extends BASICModel where
   open_induction {n} :
-    ∀ (phi_syntax : Lang.BoundedFormula Empty (n + 1)),
-    isOpen phi_syntax ->
+    ∀ (phi_syntax : peano.BoundedFormula Empty (n + 1)),
+    BoundedFormula.isOpen phi_syntax ->
     -- phi(0)
     realize_at toBASICModel phi_syntax zero ->
-    -- (∀ x : num, φ x → φ (add x one)) →
+    -- (∀ x : num, φ x -> φ (add x one)) ->
     (forall x : num,
       realize_at toBASICModel phi_syntax x ->
       realize_at toBASICModel phi_syntax (add x one)
@@ -328,7 +349,7 @@ def add_assoc_form :=
 
 def add_assoc_form_shallow (M : IOPENModel) := ∀ x y z, M.add (M.add x y) z = M.add x (M.add y z)
 
-def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize Lang M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
+def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
 
 theorem iopen_add_assoc_iff (M : IOPENModel) : add_assoc_form_shallow M <-> add_assoc_form_deep M := by {
   apply Iff.intro
@@ -343,7 +364,7 @@ theorem iopen_add_assoc_iff (M : IOPENModel) : add_assoc_form_shallow M <-> add_
     specialize h z y x
     rw [<- Term.bdEqual]
     simp
-    simp [FirstOrder.Language.Structure.funMap, Fin.snoc]
+    simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc]
     exact h
   · intro h
     unfold add_assoc_form_shallow
@@ -356,7 +377,7 @@ theorem iopen_add_assoc_iff (M : IOPENModel) : add_assoc_form_shallow M <-> add_
     specialize h z y x
     rw [<- Term.bdEqual] at h
     simp at h
-    simp [FirstOrder.Language.Structure.funMap, Fin.snoc] at h
+    simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc] at h
     exact h
 }
 
@@ -374,7 +395,7 @@ theorem iopen_add_assoc (M : IOPENModel) : ∀ x y z, M.add (M.add x y) z = M.ad
     unfold eq_form
     intros a b
     simp [BoundedFormula.Realize, binary_func_term, var_term]
-    simp [FirstOrder.Language.Structure.funMap, Fin.snoc]
+    simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc]
     -- use B3. x + 0 = x
     rw [M.B3 (M.add b a)]
     rw [M.B3 a]
@@ -384,7 +405,7 @@ theorem iopen_add_assoc (M : IOPENModel) : ∀ x y z, M.add (M.add x y) z = M.ad
     simp [realize_at]
     intros y z
     simp [BoundedFormula.Realize, eq_form, binary_func_term, var_term]
-    simp [FirstOrder.Language.Structure.funMap, Fin.snoc]
+    simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc]
     -- use B4. x + (y + 1) = (x + y) + 1
     repeat rw [M.B4]
     -- try to use B2 in reverse: x + 1 = y + 1 <- x = y
@@ -398,17 +419,38 @@ theorem iopen_add_assoc (M : IOPENModel) : ∀ x y z, M.add (M.add x y) z = M.ad
 
 structure IDelta0Model extends BASICModel where
   delta0_induction {n} :
-    ∀ (phi_syntax : Lang.BoundedFormula Empty (n + 1)),
+    ∀ (phi_syntax : peano.BoundedFormula Empty (n + 1)),
     isDelta0 phi_syntax ->
     -- phi(0)
     realize_at toBASICModel phi_syntax zero ->
-    -- (∀ x : num, φ x → φ (add x one)) →
+    -- (∀ x : num, φ x -> φ (add x one)) ->
     (forall x : num,
       realize_at toBASICModel phi_syntax x ->
       realize_at toBASICModel phi_syntax (add x one)
     ) ->
     -- ∀ x, φ x
     (forall x : num, realize_at toBASICModel phi_syntax x)
+
+
+-- Section 3.3.3 Defining y=2^x and BIT(i, x) in IDelta0 (Draft; p.53 of draft, p.64 of pdf)
+
+-- Limited subtraction: The function x -' y := max(0, x - y) is Delta0-definable in IDelta0
+-- First, define the relation by the defining axiom
+def limited_subtraction_graph_def {a} (x y z : peano.Term a) :=
+  max ((y + z = x)) (x <= y ∧ z = 0)
+
+-- z = x -' y IFF ( (y+z=x) or (x <= y AND z = 0)) IFF phi(x, y, z)
+-- Then prove uniqueness
+IDelta0 proves forall x, forall y, e! z, phi(x, y, z)
+
+
+
+-- relation y = 2^x is Delta0-definable in IDelta0, but function f(x)=2^x is not Sigma1-def.!
+
+-- CONSERVATIVE EXTENSION: in the definition of new structure, allow symbols in the peanouage,
+-- which are definable in IDelta0! this will allow us to make induction over formulas
+-- with new symbols
+
 
 
 -- Example 3.9 The following formulas (and their universal closures) are theorems of IDelta0:
@@ -418,7 +460,7 @@ structure IDelta0Model extends BASICModel where
 --   -- let x := var_term (1 : Fin 2)
 --   -- let y := var_term (0 : Fin 2) -- y will actually be bound by a quatifier
 --   let xneq0 := BoundedFormula.not $ BoundedFormula.equal (var_term (0 : Fin 2)) (const_term funcZero) -- here 'y' means actually our 'x'!!!! (deBruijn indices)
---   let rhs : Lang.BoundedFormula Empty 2 := BoundedFormula.ex
+--   let rhs : peano.BoundedFormula Empty 2 := BoundedFormula.ex
 --     (max
 --       (BoundedFormula.rel relationLeq ![var_term (0 : Fin 2), var_term (1 : Fin 2)])
 --       (BoundedFormula.equal
@@ -429,7 +471,7 @@ structure IDelta0Model extends BASICModel where
 
 -- def pred_form_shallow (M : IDelta0Model) := ∀ x, (x ≠ M.zero) -> ∃ y , (M.leq y x ∧ x = M.add x M.one)
 
--- def pred_form_deep (M : IDelta0Model) := @BoundedFormula.Realize Lang M.num (BASICModel_Structure M.toBASICModel) _ _ (pred_form.alls) (Empty.elim) ![]
+-- def pred_form_deep (M : IDelta0Model) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (pred_form.alls) (Empty.elim) ![]
 
 -- theorem idelta0_pred_iff (M : IDelta0Model) : pred_form_shallow M <-> pred_form_deep M := by {
 --   apply Iff.intro
@@ -444,7 +486,7 @@ structure IDelta0Model extends BASICModel where
 --     specialize h y
 --     rw [<- Term.bdEqual]
 --     simp
---     simp [FirstOrder.Language.Structure.funMap, Fin.snoc]
+--     simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc]
 --     sorry
 --   · sorry
 -- }
@@ -465,7 +507,7 @@ structure IDelta0Model extends BASICModel where
 
 -- def add_assoc_form_shallow (M : IOPENModel) := ∀ x y z, M.add (M.add x y) z = M.add x (M.add y z)
 
--- def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize Lang M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
+-- def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
 
 -- Exercise 3.10 Show that IDelta0 proves the division theorem:
 -- IDelta0 |- Forall x y (0 < x -> Exists q . Exists (r < x) . y = x * q + r)
@@ -480,7 +522,7 @@ structure IDelta0Model extends BASICModel where
 
 -- def add_assoc_form_shallow (M : IOPENModel) := ∀ x y z, M.add (M.add x y) z = M.add x (M.add y z)
 
--- def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize Lang M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
+-- def add_assoc_form_deep (M : IOPENModel) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_form.alls) (Empty.elim) ![]
 
 
 -- Example 5.44 (The Pairing Function). We define the pairing function
