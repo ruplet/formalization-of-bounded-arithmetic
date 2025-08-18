@@ -31,7 +31,7 @@ inductive PeanoRel : Nat -> Type*
   | leq : PeanoRel 2
   deriving DecidableEq
 
-@[simp] def Language.peano : Language :=
+def Language.peano : Language :=
 { Functions := PeanoFunc,
   Relations := PeanoRel
 }
@@ -48,6 +48,9 @@ instance {M} [h : Language.peano.Structure M] : Add M :=
 instance {M} [h : Language.peano.Structure M] : Mul M :=
   ⟨fun x y => h.funMap PeanoFunc.mul ![x, y]⟩
 
+instance {M} [h : Language.peano.Structure M] : LE M :=
+  ⟨fun x y => h.RelMap PeanoRel.leq ![x, y]⟩
+
 def natToM {M} [h : Language.peano.Structure M] : Nat -> M
 | 0 => 0
 | 1 => 1
@@ -58,6 +61,38 @@ instance {M} [h : Language.peano.Structure M] (n) : OfNat M n where
 
 namespace Language
 
+namespace BoundedFormula
+
+@[simp] def boundedEx {a} {n} (t : peano.Term (a ⊕ (Fin n))) (f : peano.BoundedFormula a (n + 1)) : peano.BoundedFormula a n :=
+  -- if `phi` is at level `n + 1`, then `n` (highest index) is the deBruijn ind of `x`
+  -- `&(Fin.last n)` lifts `n` into Term.var; this denotes just `x`
+  -- `t.relabel...` lifts `t` from lv `n` to lv `n + 1`
+  ((BoundedFormula.rel PeanoRel.leq ![
+    (&(Fin.last n)),
+    (t.relabel $ Sum.map id (Fin.succEmb n))
+    ]
+  ) ⊓ f).ex
+
+
+@[simp] def boundedAll {a} {n} (t : peano.Term (a ⊕ (Fin n))) (f : peano.BoundedFormula a (n + 1)) : peano.BoundedFormula a n :=
+  ((BoundedFormula.rel PeanoRel.leq ![
+    (&(Fin.last n)),
+    (t.relabel $ Sum.map id (Fin.succEmb n))
+    ]
+  ) ⟹ f).all
+
+-- @[simp] def boundedExUnique {a} {n} (t : peano.Term (a ⊕ (Fin n))) (f : peano.BoundedFormula a (n + 1)) : peano.BoundedFormula a n :=
+--   -- if `phi` is at level `n + 1`, then `n` (highest index) is the deBruijn ind of `x`
+--   -- `&(Fin.last n)` lifts `n` into Term.var; this denotes just `x`
+--   -- `t.relabel...` lifts `t` from lv `n` to lv `n + 1`
+--   ((BoundedFormula.rel PeanoRel.leq ![
+--     (&(Fin.last n)),
+--     (t.relabel $ Sum.map id (Fin.succEmb n))
+--     ]
+--   ) ⊓ f ⊓ (forall y, y<=t -> phi(y) -> y = x0 )).ex
+
+end BoundedFormula
+
 namespace Formula
 /-- Computable version of FirstOrder.Language.Formula.iAlls -/
 @[simp] def iAllsComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
@@ -65,6 +100,73 @@ namespace Formula
 
 @[simp] def iAllsComputableEmpty {L : Language} {β} {k} (e : β ≃ Fin k) (φ : L.Formula β) : L.Formula Empty :=
   (BoundedFormula.relabel (fun a => Sum.inr $ e a) φ).alls
+
+@[simp] def iExsComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  (BoundedFormula.relabel (fun a => Sum.map id e a) φ).exs
+
+@[simp] def iExsComputableEmpty {L : Language} {β} {k} (e : β ≃ Fin k) (φ : L.Formula β) : L.Formula Empty :=
+  (BoundedFormula.relabel (fun a => Sum.inr $ e a) φ).exs
+
+@[simp] def Fintype.ofFiniteComputable (α : Type*) {k} (e : α ≃ Fin k) : Fintype α := by
+  apply @Fintype.ofBijective (Fin k) α _ e.invFun
+  rw [Equiv.invFun_as_coe]
+  exact _root_.Equiv.bijective e.symm
+
+@[simp] def Finset.toListComputable {α} {k} (e : α ≃ Fin k) : List α :=
+  List.ofFn e.symm
+
+@[simp] def iInfComputable {L : Language} {α β} {n k} (e : β ≃ Fin k) (f : β -> L.BoundedFormula α n) : L.BoundedFormula α n :=
+  let _ : Fintype β := Fintype.ofFiniteComputable β e
+  ((Finset.toListComputable e).map f).foldr (· ⊓ ·) ⊤
+
+@[simp]
+theorem realize_iInfComputable {L : Language} {M} [L.Structure M] {α β} {n} {k} (e : β ≃ Fin k) {f : β → L.BoundedFormula α n}
+    {v : α → M} {v' : Fin n → M} :
+    (iInfComputable e f).Realize v v' ↔ ∀ b, (f b).Realize v v' := by
+  simp only [iInfComputable, Finset.toListComputable, List.map_ofFn,
+    BoundedFormula.realize_foldr_inf, List.mem_ofFn, Function.comp_apply, forall_exists_index,
+    forall_apply_eq_imp_iff]
+  rw [Equiv.forall_congr' e.symm]
+  rw [@_root_.Equiv.symm_symm]
+  rw [<- e.invFun_as_coe]
+  rw [<- e.toFun_as_coe]
+  intro
+  rw [<- Function.comp_apply (f := e.invFun) (g := e.toFun)]
+  rw [e.left_inv.id]
+  rfl
+
+-- @[simp]
+-- theorem realize_iAllsComputable {L : Language} {M} [L.Structure M] {α β} {n} {k} (e : β ≃ Fin k) {f : L.Formula (α ⊕ β)}
+--     {v : α → M} :
+--     (iAllsComputable e f).Realize v ↔ ∀ b, (f b).Realize v := by
+--   simp only [iInfComputable, Finset.toListComputable, List.map_ofFn,
+--     BoundedFormula.realize_foldr_inf, List.mem_ofFn, Function.comp_apply, forall_exists_index,
+--     forall_apply_eq_imp_iff]
+--   rw [Equiv.forall_congr' e.symm]
+--   rw [@_root_.Equiv.symm_symm]
+--   rw [<- e.invFun_as_coe]
+--   rw [<- e.toFun_as_coe]
+--   intro
+--   rw [<- Function.comp_apply (f := e.invFun) (g := e.toFun)]
+--   rw [e.left_inv.id]
+--   rfl
+
+@[simp] def iExsUniqueComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  iExsComputable e <| φ ⊓ iAllsComputable e
+    ((φ.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
+      .iInfComputable e fun g => Term.equal (var (.inr g)) (var (.inl (.inr g))))
+
+@[simp] def iExsUniqueComputableEmpty {L : Language} {β} {k} (e : β ≃ Fin k) (φ : L.Formula β) : L.Formula Empty :=
+  iExsComputableEmpty e <| φ ⊓ iAllsComputable e
+    ((φ.relabel (fun a => .inr a)).imp <|
+      .iInfComputable e fun g => Term.equal (var (.inr g)) (var (.inl g)))
+
+@[simp] def iBdExsUniqueComputable {α β} {k} (e : β ≃ Fin k) (bdTerms : β -> peano.Term (α ⊕ Fin 0)) (φ : peano.Formula (α ⊕ β)) : peano.Formula α :=
+  let φ' : peano.Formula (α ⊕ β) := (Formula.iInfComputable e fun g => BoundedFormula.rel PeanoRel.leq ![var (.inl (.inr g)), (bdTerms g).relabel (Sum.map (fun c => .inl c) id)]) ⊓ φ
+  iExsComputable e <| φ' ⊓ iAllsComputable e
+    ((φ'.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
+      .iInfComputable e fun g => Term.equal (var (.inr g)) (var (.inl (.inr g))))
+
 end Formula
 
 namespace peano
@@ -97,11 +199,11 @@ instance : NatCast (peano.Term a) where
 
 -- inspired by https://github.com/leanprover-community/mathlib4/blob/cff2a6ea669abe2e384ea4c359f20ee90a5dc855/Mathlib/ModelTheory/Syntax.lean#L344
 /-- The inequality of two terms as a bounded formula -/
-@[simp] def Term.bdNeq {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+def Term.bdNeq {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
   ∼(t1 =' t2)
 
 /-- The less-than-or-equal relation of two terms as a bounded formula -/
-@[simp] def Term.bdLeq {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+def Term.bdLeq {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
   Relations.boundedFormula₂ FirstOrder.PeanoRel.leq t1 t2
 
 -- inspired by https://github.com/leanprover-community/mathlib4/blob/cff2a6ea669abe2e384ea4c359f20ee90a5dc855/Mathlib/ModelTheory/Syntax.lean#L732
@@ -113,7 +215,7 @@ instance : NatCast (peano.Term a) where
 @[inherit_doc] scoped[FirstOrder] infixl:89 " <=' " => Language.peano.Term.bdLeq
 
 /-- The less-than relation of two terms as a bounded formula -/
-@[simp] def Term.bdLt {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+def Term.bdLt {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
   (t1 <=' t2) ⊓ ∼(t1 =' t2)
 
 @[inherit_doc] scoped[FirstOrder] infixl:89 " <' " => Language.peano.Term.bdLt
@@ -145,6 +247,22 @@ instance : NatCast (peano.Term a) where
   Term.realize env (t * u) = Term.realize env t * Term.realize env u := by
   simp only [HMul.hMul, Mul.mul]
   rw [@Term.realize_functions_apply₂]
+
+@[simp] lemma realize_leq_to_leq {M} [h : peano.Structure M] {a} {env : a → M}
+    {k} (t u : peano.Term (a ⊕ (Fin k))) {xs} :
+  (t <=' u).Realize env xs = (t.realize (Sum.elim env xs) <= u.realize (Sum.elim env xs)) := by
+  simp only [LE.le, Term.bdLeq, Relations.boundedFormula₂]
+  rw [← @BoundedFormula.realize_rel₂]
+  unfold Relations.boundedFormula₂
+  rfl
+
+@[simp] lemma realize_leq_to_leq' {M} [h : peano.Structure M] {a} {env : a → M}
+    {k} (t u : peano.Term (a ⊕ (Fin k))) {xs} :
+  (BoundedFormula.rel PeanoRel.leq ![t, u]).Realize env xs = (t.realize (Sum.elim env xs) <= u.realize (Sum.elim env xs)) := by
+  simp only [LE.le]
+  rw [← @BoundedFormula.realize_rel₂]
+  unfold Relations.boundedFormula₂ Relations.boundedFormula
+  rfl
 
 end peano
 
@@ -261,6 +379,8 @@ inductive DisplayedFV3 | x | y | z deriving DecidableEq
 @[simp] def iAllsFv1 (phi: peano.Formula DisplayedFV1) := phi.iAllsComputableEmpty DisplayedFV1.equivFin1
 @[simp] def iAllsFv2 (phi: peano.Formula DisplayedFV2) := phi.iAllsComputableEmpty DisplayedFV2.equivFin2
 @[simp] def iAllsFv3 (phi: peano.Formula DisplayedFV3) := phi.iAllsComputableEmpty DisplayedFV3.equivFin3
+@[simp] def iExsUniqueFv1 {a} (phi: peano.Formula (a ⊕ DisplayedFV1)) := phi.iExsUniqueComputable DisplayedFV1.equivFin1
+@[simp] def iBdExsUniqueFv1 {a} (phi: peano.Formula (a ⊕ DisplayedFV1)) (terms : DisplayedFV1 -> peano.Term (a ⊕ Fin 0)) := phi.iBdExsUniqueComputable DisplayedFV1.equivFin1 terms
 
 @[simp] def x {k} : peano.Term (DisplayedFV1 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV1.x)
 @[simp] def x' {k} : peano.Term (DisplayedFV2 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV2.x)
@@ -293,6 +413,8 @@ structure BASICModel where
   B7 : num ⊨ iAllsFv2 B7_ax
   B8 : num ⊨ iAllsFv2 B8_ax
   C  : num ⊨ iAllsFv0 C_ax
+
+
 
 instance (M : BASICModel) : peano.Structure M.num where
   funMap := M.hPeano.funMap
@@ -363,6 +485,26 @@ def display_x (phi : peano.Formula DisplayedFV1) : peano.Formula (DisplayedFV1 �
   | .x => Sum.inl .x
   )
 
+def display_x' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inr .x
+  | .y => Sum.inl .x
+  )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+@[simp]
+def display_x'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV2 ⊕ DisplayedFV1) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inr DisplayedFV1.x
+  | .y => Sum.inl DisplayedFV2.x
+  | .z => Sum.inl DisplayedFV2.y
+  )) : DisplayedFV3 -> ((DisplayedFV2 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
 @[simp]
 def display_z'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
   (phi.relabel ((fun fv => Sum.inl (match fv with
@@ -375,7 +517,24 @@ def display_z'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedF
   )
 
 @[simp]
-theorem distr {T T'} (v : T -> T') (f1 f2 f3: DisplayedFV3 -> T)
+def display_z''2 {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV2 ⊕ DisplayedFV1) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inl DisplayedFV2.x
+  | .y => Sum.inl DisplayedFV2.y
+  | .z => Sum.inr DisplayedFV1.x
+  )) : DisplayedFV3 -> ((DisplayedFV2 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+@[simp]
+theorem distr2 {T T'} (v : T -> T') (f1 f2: DisplayedFV2 -> T)
+  : v ∘ (fun fv : DisplayedFV2 => match fv with |.x => f1 .x |.y => f2 .y )
+  = (fun fv : DisplayedFV2 => match fv with |.x => v (f1 .x) |.y => v (f2 .y)) := by
+  ext a; cases a <;> simp
+
+@[simp]
+theorem distr3 {T T'} (v : T -> T') (f1 f2 f3: DisplayedFV3 -> T)
   : v ∘ (fun fv : DisplayedFV3 => match fv with |.x => f1 .x |.y => f2 .y | .z => f3 .z)
   = (fun fv : DisplayedFV3 => match fv with |.x => v (f1 .x) |.y => v (f2 .y) | .z => v ( f3 .z)) := by
   ext a; cases a <;> simp
@@ -394,6 +553,18 @@ theorem realize_fun_eq' {L : Language} {M} [L.Structure M] {α} {n} {φ : L.Boun
   Formula L a = BoundedFormula L a 0 := rfl
 
 @[simp]
+theorem BoundedFormula.realize_display_x' {M} [peano.Structure M] {n} {φ : peano.BoundedFormula DisplayedFV2 n} {v : _ → M} {xs}
+    : BoundedFormula.Realize (display_x' φ) v xs ↔
+      φ.Realize (fun fv => match fv with | .x => v (Sum.inr .x) | .y => v (Sum.inl .x)) xs := by
+  unfold display_x'
+  rw [@BoundedFormula.realize_castLE_of_eq _ _ _ _ (0 + n) n (by simp only [Nat.zero_add])]
+  rw [BoundedFormula.realize_relabel]
+  apply realize_fun_eq'
+  · apply (distr2 v (fun _ => Sum.inr DisplayedFV1.x) (fun _ => Sum.inl DisplayedFV1.x))
+  · rw [Fin.natAdd_zero]
+    rfl
+
+@[simp]
 theorem BoundedFormula.realize_display_z'' {M} [peano.Structure M] {n} {φ : peano.BoundedFormula DisplayedFV3 n} {v : _ → M} {xs}
     : BoundedFormula.Realize (display_z'' φ) v xs ↔
       φ.Realize (fun fv => match fv with | .x => v (Sum.inr .x) | .y => v (Sum.inr .y) | .z => v (Sum.inl .x)) xs := by
@@ -401,7 +572,19 @@ theorem BoundedFormula.realize_display_z'' {M} [peano.Structure M] {n} {φ : pea
   rw [@BoundedFormula.realize_castLE_of_eq _ _ _ _ (0 + n) n (by simp only [Nat.zero_add])]
   rw [BoundedFormula.realize_relabel]
   apply realize_fun_eq'
-  · apply (distr v (fun _ => Sum.inr DisplayedFV2.x) (fun _ => Sum.inr DisplayedFV2.y) (fun _ => Sum.inl DisplayedFV1.x))
+  · apply (distr3 v (fun _ => Sum.inr DisplayedFV2.x) (fun _ => Sum.inr DisplayedFV2.y) (fun _ => Sum.inl DisplayedFV1.x))
+  · rw [Fin.natAdd_zero]
+    rfl
+
+@[simp]
+theorem BoundedFormula.realize_display_z''2 {M} [peano.Structure M] {n} {φ : peano.BoundedFormula DisplayedFV3 n} {v : _ → M} {xs}
+    : BoundedFormula.Realize (display_z''2 φ) v xs ↔
+      φ.Realize (fun fv => match fv with | .x => v (Sum.inl .x) | .y => v (Sum.inl .y) | .z => v (Sum.inr .x)) xs := by
+  unfold display_z''2
+  rw [@BoundedFormula.realize_castLE_of_eq _ _ _ _ (0 + n) n (by simp only [Nat.zero_add])]
+  rw [BoundedFormula.realize_relabel]
+  apply realize_fun_eq'
+  · apply (distr3 v (fun _ => Sum.inl DisplayedFV2.x) (fun _ => Sum.inl DisplayedFV2.y) (fun _ => Sum.inr DisplayedFV1.x))
   · rw [Fin.natAdd_zero]
     rfl
 
@@ -414,7 +597,7 @@ theorem Formula.realize_display_z'' {M} [peano.Structure M] {φ} {v : _ → M}
   rw [@BoundedFormula.realize_castLE_of_eq _ _ _ _ 0 0 rfl]
   rw [BoundedFormula.realize_relabel]
   apply realize_fun_eq
-  apply (distr v (fun _ => Sum.inr DisplayedFV2.x) (fun _ => Sum.inr DisplayedFV2.y) (fun _ => Sum.inl DisplayedFV1.x))
+  apply (distr3 v (fun _ => Sum.inr DisplayedFV2.x) (fun _ => Sum.inr DisplayedFV2.y) (fun _ => Sum.inl DisplayedFV1.x))
 
 
 -- Example 3.8 The following formulas (and their universal closures) are theorems of IOPEN:
@@ -446,9 +629,9 @@ theorem iopen_add_assoc_iff {M : IOPENModel}
       Sum.elim_inr, Fin.snoc_apply_zero, funMap_add_to_add]
     exact h
 
-@[simp] lemma Term.realize_add {a} {M} [h : peano.Structure M] {env} {t u : peano.Term a} :
-    Term.realize env (t + u) = h.funMap PeanoFunc.add ![Term.realize env t, Term.realize env u] := by
-  simp [HAdd.hAdd]
+-- @[simp] lemma Term.realize_add {a} {M} [h : peano.Structure M] {env} {t u : peano.Term a} :
+--     Term.realize env (t + u) = h.funMap PeanoFunc.add ![Term.realize env t, Term.realize env u] := by
+--   simp [HAdd.hAdd]
 
 theorem Formula.relabel_falsum {L : Language} {a b} (g : a -> b ⊕ Fin 0) :
   (.falsum : L.Formula a).relabel g = .falsum :=
@@ -458,8 +641,22 @@ theorem BoundedFormula.relabel_bdEqual {L : Language} {a b} {n} (f : a -> b ⊕ 
   ((phi =' psi).relabel f : L.BoundedFormula b (n + k)) = (phi.relabel (fun fv => BoundedFormula.relabelAux f k fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f k fv)) := by
   rfl
 
+-- theorem Formula.relabel_bdEqual' {L : Language} {a b} {n} (f : a -> b) {k} (phi psi : L.Term a) :
+--   ((Term.equal phi psi).relabel f : L.Formula b) = (phi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) := by
+--   rfl
+
 theorem Formula.relabel_bdEqual {L : Language} {a b} {n} (f : a -> b ⊕ (Fin n)) (phi psi : L.Term (a ⊕ Fin 0)) :
   ((phi =' psi : L.Formula a).relabel f : L.BoundedFormula b (n + 0)) = (phi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) := by
+  rfl
+
+@[simp]
+theorem BoundedFormula.relabel_sup {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊔ ψ).relabel g = (φ.relabel g) ⊔ (ψ.relabel g) :=
+  rfl
+
+@[simp]
+theorem BoundedFormula.relabel_inf {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabel g = (φ.relabel g) ⊓ (ψ.relabel g) :=
   rfl
 
 -- TODO: not fixing the 'num'(?) universe level to 0 breaks everything.
@@ -469,6 +666,7 @@ theorem iopen_add_assoc (M : IOPENModel.{_, _, _, 0}) : FirstOrder.Language.Sent
     constructor
     apply BoundedFormula.IsAtomic.equal
   )
+
   unfold mkInductionSentence Formula.iAllsComputable at ind
   unfold Sentence.Realize Formula.Realize at ind
   rw [BoundedFormula.realize_imp, BoundedFormula.realize_imp] at ind
@@ -476,141 +674,78 @@ theorem iopen_add_assoc (M : IOPENModel.{_, _, _, 0}) : FirstOrder.Language.Sent
   -- Transform the base of induction
   conv at ind =>
     lhs
-    rw [BoundedFormula.realize_subst]
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_display_z'']
-    unfold add_assoc_frm
-    rw [BoundedFormula.realize_bdEqual]
-    unfold x'' y'' z'' HAdd.hAdd Add.add instHAdd
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [display_z'', add_assoc_frm, x'', y'', z'']
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   -- Transform the induction
   conv at ind =>
     rhs; lhs;
-    unfold iAllsFv1 Formula.iAllsComputableEmpty
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    rw [BoundedFormula.realize_imp]
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [display_z'', add_assoc_frm, x'', y'', z'']
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
+    simp [Fin.snoc]
 
   -- Transform precondition of step of induction
   conv at ind =>
     rhs; lhs; intro; lhs
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro y
-    rw [BoundedFormula.realize_all]
-    intro z
-    rw [BoundedFormula.realize_relabel]
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_display_z'']
-    unfold add_assoc_frm x'' y'' z'' HAdd.hAdd Add.add instHAdd
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [display_z'', add_assoc_frm, x'', y'', z'']
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   -- Transform postcondition of step of induction
   conv at ind =>
     rhs; lhs; intro; rhs
-    rw [BoundedFormula.realize_subst]
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_display_z'']
-    unfold add_assoc_frm x'' y'' z'' HAdd.hAdd Add.add instHAdd
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [display_z'', add_assoc_frm, x'', y'', z'']
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   -- Transform the target of induction
   conv at ind =>
     rhs; rhs
-    unfold iAllsFv1 Formula.iAllsComputableEmpty
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold BoundedFormula.alls
-    rw [BoundedFormula.realize_display_z'']
-    unfold add_assoc_frm x'' y'' z'' HAdd.hAdd Add.add instHAdd
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [display_z'', add_assoc_frm, x'', y'', z'']
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   -- Transform the actual target
-  unfold iAllsFv3 Formula.iAllsComputableEmpty
-  unfold BoundedFormula.alls
-  unfold Sentence.Realize Formula.Realize
-  unfold BoundedFormula.alls
-  unfold BoundedFormula.alls
-  unfold BoundedFormula.alls
-  rw [BoundedFormula.realize_all]
-  intro
-  rw [BoundedFormula.realize_all]
-  intro
-  rw [BoundedFormula.realize_all]
-  intro
-  rw [BoundedFormula.realize_relabel]
-  unfold add_assoc_frm x'' y'' z'' HAdd.hAdd instHAdd
+  simp only [iAllsFv3, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+  repeat intro
+  simp only [add_assoc_frm, x'', y'', z'']
+  simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
   simp [Fin.snoc]
 
   -- Transform axioms
   have b3 := M.B3
   conv at b3 =>
-    simp only [iAllsFv1, Formula.iAllsComputableEmpty]
-    repeat unfold BoundedFormula.alls
-    unfold Sentence.Realize Formula.Realize
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold B3_ax x HAdd.hAdd instHAdd
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [B3_ax, x]
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   have b4 := M.B4
   conv at b4 =>
-    simp only [iAllsFv2, Formula.iAllsComputableEmpty]
-    repeat unfold BoundedFormula.alls
-    unfold Sentence.Realize Formula.Realize
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold B4_ax x HAdd.hAdd instHAdd
+    simp only [iAllsFv2, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [B4_ax]
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   have b2 := M.B2
   conv at b2 =>
-    simp only [iAllsFv2, Formula.iAllsComputableEmpty]
-    repeat unfold BoundedFormula.alls
-    unfold Sentence.Realize Formula.Realize
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold B2_ax x HAdd.hAdd instHAdd
+    simp only [iAllsFv2, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    repeat intro
+    simp only [B2_ax, x]
+    simp only [BoundedFormula.realize_relabel, HAdd.hAdd, Add.add, instHAdd]
     simp [Fin.snoc]
 
   -- Actual proof! ----------------------------------
@@ -632,136 +767,374 @@ theorem iopen_add_assoc (M : IOPENModel.{_, _, _, 0}) : FirstOrder.Language.Sent
       rw [b4]
       rw [b4]
     rw [<- (b2 (x + y + z) (x + (y + z)))]
+    -- Option 1 (suggested by apply?):
+    apply congrFun (congrArg HAdd.hAdd (hInd x y)) 1
+    -- Option 2, more intuitively
+    -- -- Auxiliary lemma (B2 in reverse) : x = y -> x + 1 = y + 1
+    -- have b2_rev : forall (x y : M.num), x = y -> x + 1 = y + 1 := by {
+    --   intro x' y' h
+    --   rw [h]
+    -- }
+    -- apply b2_rev
+    -- apply hInd
 
-    -- Auxiliary lemma (B2 in reverse) : x = y -> x + 1 = y + 1
-    have b2_rev : forall (x y : M.num), x = y -> x + 1 = y + 1 := by {
-      intro x' y' h
-      rw [h]
-    }
-    apply b2_rev
-    apply hInd
+structure IDelta0Model extends BASICModel where
+  delta0_induction {a} {k}
+    (phi : peano.Formula (DisplayedFV1 ⊕ a))
+    (h : a ≃ Fin k) :
+    phi.IsDelta0 -> (mkInductionSentence h phi).Realize num
+
+-- Example 3.9 D2; note that we bound the ∃ quantifier here! otherwise it doesn't make sense
+def ex3_9_d2_frm : peano.Formula DisplayedFV3 := (x'' + z'') =' y'' ⊔ ((y'' + z'') =' x'')
+def ex3_9_d2_frm_ex := iBdExsUniqueFv1 (display_z''2 ex3_9_d2_frm) (fun _ => x' + y')
+
+@[simp]
+theorem Term.realize_equal {L : Language} {M} [L.Structure M] {α} {v : α -> M} (t₁ t₂ : L.Term α) :
+    (Term.equal t₁ t₂).Realize v ↔ t₁.realize v = t₂.realize v := by
+  exact Formula.realize_equal
+
+@[simp]
+theorem BoundedFormula.realize_equal' {L : Language} {M} [h: L.Structure M] {α} {v : α -> M} (t₁ t₂ : L.Term α) {xs} :
+    BoundedFormula.Realize (Term.equal t₁ t₂) v xs ↔ t₁.realize v = t₂.realize v := by
+  let h' := @Formula.realize_equal _ _ h _ t₁ t₂ v
+  let h'' : xs = default := by
+    funext x
+    exfalso
+    apply Fin.elim0
+    exact x
+  unfold Formula.Realize at h'
+  rw [<- h''] at h'
+  exact h'
+
+theorem idelta0_ex3_9_d1 (M : IDelta0Model.{_, _, _, 0}) : ∀ x : M.num, x ≠ 0 -> (∃ y, y <= x ∧ x = y + 1) := by
+  sorry
+
+theorem idelta0_ex3_9_d2 (M : IDelta0Model.{_, _, _, 0}) : ∀ x y : M.num, ∃! z, (x + z = y) ⊔ (y + z = x) := by
+  -- induction on x
+  have ind := M.delta0_induction (display_x' ex3_9_d2_frm_ex) DisplayedFV1.equivFin1 (by
+    sorry
+  )
+
+  unfold mkInductionSentence Formula.iAllsComputable at ind
+  unfold Sentence.Realize Formula.Realize at ind
+  rw [BoundedFormula.realize_imp, BoundedFormula.realize_imp] at ind
+
+  -- Transform base
+  conv at ind =>
+    lhs
+    simp only [BoundedFormula.alls, DisplayedFV1.equivFin1, Fin.isValue, Equiv.coe_fn_mk,
+      BoundedFormula.realize_subst, peano.realize_zero_to_zero, BoundedFormula.realize_all,
+      Nat.succ_eq_add_one, Nat.reduceAdd, BoundedFormula.realize_relabel, Nat.add_zero,
+      Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, BoundedFormula.realize_display_x',
+      Function.comp_apply, Sum.map_inr, Sum.elim_inr, Sum.map_inl, id_eq, Sum.elim_inl]
+    intro
+    simp only [BoundedFormula.realize_relabel, BoundedFormula.realize_display_x', ex3_9_d2_frm_ex, iBdExsUniqueFv1, Formula.iBdExsUniqueComputable, Formula.iExsComputable]
+    simp only [BoundedFormula.exs, BoundedFormula.realize_ex]
+    rhs; intro
+    simp only [BoundedFormula.realize_relabel, BoundedFormula.realize_inf, BoundedFormula.realize_iInf]
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, BoundedFormula.alls, Sentence.Realize, Formula.Realize, BoundedFormula.realize_all]
+    conv =>
+      left; left
+      simp only [Formula.realize_iInfComputable]
+      intro
+      simp only [peano.instAddTerm, x', y', peano.realize_zero_to_zero, Nat.add_zero,
+        Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
+        DisplayedFV1.equivFin1, Fin.isValue, Equiv.coe_fn_mk, Function.comp_apply, Sum.map_inr,
+        Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
+        cast_eq, Sum.map_inl, id_eq, Sum.elim_inl, peano.realize_leq_to_leq', Term.realize_var,
+        Term.realize_relabel, peano.realize_add_to_add]
+    conv =>
+      left; right
+      simp only [BoundedFormula.realize_display_z''2, ex3_9_d2_frm, Formula.eq_BoundedFormula, peano.instAddTerm, x'', z'', y'',
+        peano.realize_zero_to_zero, Nat.add_zero, Nat.succ_eq_add_one, Nat.reduceAdd,
+        Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, DisplayedFV1.equivFin1, Fin.isValue,
+        Equiv.coe_fn_mk, Function.comp_apply, Sum.map_inr, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero,
+        lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq, Sum.map_inl, id_eq, Sum.elim_inl,
+        BoundedFormula.realize_sup, BoundedFormula.realize_bdEqual, peano.realize_add_to_add,
+        Term.realize_var]
+    conv =>
+      right
+      simp only [Formula.iAllsComputable, BoundedFormula.alls, DisplayedFV1.equivFin1, Fin.isValue,
+        Equiv.coe_fn_mk, Formula.eq_BoundedFormula, Formula.iInfComputable, peano.instAddTerm, x',
+        y', Formula.Finset.toListComputable, Equiv.coe_fn_symm_mk, List.ofFn_succ, List.ofFn_zero,
+        List.map_cons, List.map_nil, List.foldr_cons, List.foldr_nil, display_z''2, Nat.add_zero,
+        BoundedFormula.castLE_rfl, BoundedFormula.relabel_imp, BoundedFormula.relabel_inf,
+        Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
+        BoundedFormula.realize_all, BoundedFormula.realize_imp, BoundedFormula.realize_relabel,
+        BoundedFormula.realize_inf, BoundedFormula.realize_top, and_true]
+      intro
+      unfold Formula.relabel
+      simp only [BoundedFormula.relabel_inf, Nat.add_zero, Fin.snoc, Nat.reduceAdd, Fin.isValue,
+        Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq,
+        BoundedFormula.realize_inf, BoundedFormula.realize_relabel, Fin.castAdd_zero, Fin.cast_refl,
+        Function.comp_id, Fin.natAdd_zero, peano.realize_leq_to_leq', Term.realize_var,
+        Sum.elim_inl, Function.comp_apply, Sum.elim_inr, Sum.map_inr, Term.realize_relabel,
+        peano.realize_add_to_add, Sum.map_inl, id_eq, BoundedFormula.realize_top, and_true, and_imp]
+      rhs
+      simp only [ex3_9_d2_frm, Formula.eq_BoundedFormula, peano.instAddTerm, x'', z'', y'',
+        Fin.isValue, BoundedFormula.realize_sup, BoundedFormula.realize_bdEqual,
+        peano.realize_add_to_add, Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.map_inl,
+        id_eq, Sum.elim_inr, Sum.map_inr, Fin.snoc, Nat.reduceAdd, Fin.val_eq_zero,
+        lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq]
+      rhs
+
+      rw [BoundedFormula.realize_equal']
+      simp only [Fin.isValue, Term.realize_var, Function.comp_apply, Sum.map_inr, Sum.elim_inr,
+        Fin.snoc, Nat.reduceAdd, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
+        cast_eq, Sum.map_inl, id_eq, Sum.elim_inl]
+
+  -- Transform step
+  conv at ind =>
+    intro
+    simp only [iAllsFv1, Formula.iAllsComputableEmpty, Nat.add_zero, DisplayedFV1.equivFin1,
+      Fin.isValue, Equiv.coe_fn_mk, peano.instAddTerm, BoundedFormula.relabel_imp, BoundedFormula.alls]
+    conv =>
+      lhs
+      simp only [BoundedFormula.realize_all]
+      intro
+      simp only [BoundedFormula.realize_imp]
+      conv =>
+        lhs
+        simp only [BoundedFormula.realize_relabel, ex3_9_d2_frm_ex, ex3_9_d2_frm]
+        simp only [Fin.isValue, iBdExsUniqueFv1, Formula.iBdExsUniqueComputable,
+          Formula.iExsComputable, Nat.add_zero, DisplayedFV1.equivFin1, Equiv.coe_fn_mk,
+          Formula.eq_BoundedFormula, Formula.iInfComputable, peano.instAddTerm, x', y',
+          Formula.Finset.toListComputable, Equiv.coe_fn_symm_mk, List.ofFn_succ, List.ofFn_zero,
+          List.map_cons, List.map_nil, List.foldr_cons, List.foldr_nil, display_z''2, x'', z'', y'',
+          BoundedFormula.relabel_sup, BoundedFormula.castLE_rfl, Formula.iAllsComputable,
+          BoundedFormula.relabel_imp, BoundedFormula.relabel_inf, Nat.succ_eq_add_one,
+          Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
+          BoundedFormula.realize_all, BoundedFormula.realize_relabel,
+          BoundedFormula.realize_display_x', Function.comp_apply, Sum.map_inr, Sum.elim_inr,
+          Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq,
+          Sum.map_inl, id_eq, Sum.elim_inl]
+        intro
+        unfold BoundedFormula.exs
+        unfold BoundedFormula.exs
+        simp [BoundedFormula.realize_ex]
+        rhs; intro;
+        simp only [Fin.snoc, Nat.reduceAdd, Fin.isValue, Fin.val_eq_zero, lt_self_iff_false,
+          ↓reduceDIte, Fin.reduceLast, cast_eq]
+        right;
+        unfold BoundedFormula.alls
+        unfold BoundedFormula.alls
+        simp only [BoundedFormula.realize_all]
+        intro
+        simp only [BoundedFormula.realize_imp]
+        conv =>
+          left
+          unfold Formula.relabel
+          simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.isValue, BoundedFormula.relabel_inf,
+            Nat.add_zero, BoundedFormula.relabel_sup, BoundedFormula.realize_inf,
+            BoundedFormula.realize_relabel, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
+            Fin.natAdd_zero, peano.realize_leq_to_leq', Term.realize_var, Sum.elim_inl,
+            Function.comp_apply, Sum.elim_inr, Sum.map_inr, Fin.snoc, Fin.val_eq_zero,
+            lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq, Term.realize_relabel,
+            peano.realize_add_to_add, Sum.map_inl, id_eq, BoundedFormula.realize_top, and_true,
+            BoundedFormula.realize_sup, BoundedFormula.realize_bdEqual]
+        conv =>
+          right
+          simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.isValue, BoundedFormula.realize_inf,
+            BoundedFormula.realize_relabel, Nat.add_zero, Fin.castAdd_zero, Fin.cast_refl,
+            Function.comp_id, BoundedFormula.realize_equal', Term.realize_var, Function.comp_apply,
+            Sum.map_inr, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte,
+            Fin.reduceLast, cast_eq, Sum.map_inl, id_eq, Sum.elim_inl, BoundedFormula.realize_top,
+            and_true]
+      conv =>
+        rhs
+        simp only [display_x', ex3_9_d2_frm_ex, ex3_9_d2_frm]
+        simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.isValue, Nat.add_zero, iBdExsUniqueFv1,
+          Formula.iBdExsUniqueComputable, Formula.iExsComputable, DisplayedFV1.equivFin1,
+          Equiv.coe_fn_mk, Formula.eq_BoundedFormula, Formula.iInfComputable, peano.instAddTerm, x',
+          y', Formula.Finset.toListComputable, Equiv.coe_fn_symm_mk, List.ofFn_succ, List.ofFn_zero,
+          List.map_cons, List.map_nil, List.foldr_cons, List.foldr_nil, display_z''2, x'', z'', y'',
+          BoundedFormula.relabel_sup, BoundedFormula.castLE_rfl, Formula.iAllsComputable,
+          BoundedFormula.relabel_imp, BoundedFormula.relabel_inf, BoundedFormula.realize_relabel,
+          Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, BoundedFormula.realize_subst,
+          peano.realize_add_to_add, Term.realize_var, Function.comp_apply, Sum.elim_inr,
+          peano.realize_one_to_one, BoundedFormula.realize_all, Fin.natAdd_zero]
+        intro
+        unfold BoundedFormula.exs BoundedFormula.alls
+        unfold BoundedFormula.exs BoundedFormula.alls
+        simp only [BoundedFormula.realize_ex]
+        rhs; intro
+        simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.isValue, BoundedFormula.relabel_all,
+          Nat.add_eq, Nat.add_zero, BoundedFormula.relabel_imp, BoundedFormula.relabel_inf,
+          Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq,
+          BoundedFormula.realize_inf, BoundedFormula.realize_relabel, Fin.castAdd_zero,
+          Fin.cast_refl, Function.comp_id, peano.realize_leq_to_leq', Term.realize_var,
+          Sum.elim_inl, Function.comp_apply, Sum.map_inr, Sum.elim_inr, Term.realize_relabel,
+          peano.realize_add_to_add, Sum.map_inl, id_eq, BoundedFormula.realize_top, and_true,
+          BoundedFormula.realize_sup, Fin.natAdd_zero, BoundedFormula.realize_bdEqual,
+          BoundedFormula.realize_all, BoundedFormula.realize_imp, BoundedFormula.realize_equal',
+          Fin.natAdd_eq_addNat, Fin.addNat_one, Fin.succ_zero_eq_one, Fin.coe_ofNat_eq_mod,
+          Nat.mod_succ, Fin.reduceNatAdd, Fin.reduceCastAdd, Nat.zero_mod, zero_lt_one,
+          Fin.zero_eq_one_iff, OfNat.ofNat_ne_one, not_false_eq_true, Fin.castLT_eq_castPred,
+          Fin.castPred_zero, Fin.castSucc_zero]
+        right
+        intro
+        unfold Formula.relabel
+        simp only [BoundedFormula.relabel_inf, Nat.add_zero, BoundedFormula.relabel_sup,
+          Fin.isValue, BoundedFormula.realize_inf, BoundedFormula.realize_relabel, Fin.castAdd_zero,
+          Fin.cast_refl, Function.comp_id, Fin.natAdd_zero, peano.realize_leq_to_leq',
+          Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.elim_inr, Sum.map_inr, Fin.snoc,
+          Nat.reduceAdd, Fin.natAdd_eq_addNat, Fin.addNat_one, Fin.succ_zero_eq_one,
+          Fin.coe_ofNat_eq_mod, Nat.mod_succ, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
+          Fin.reduceNatAdd, cast_eq, Term.realize_relabel, peano.realize_add_to_add, Sum.map_inl,
+          id_eq, Fin.val_eq_zero, BoundedFormula.realize_top, and_true, BoundedFormula.realize_sup,
+          BoundedFormula.realize_bdEqual, and_imp]
+
+  -- Transform goal of induction
+  conv at ind =>
+    intro; intro
+    simp only [BoundedFormula.realize_all]
+    intro
+    simp only [display_x', ex3_9_d2_frm_ex, ex3_9_d2_frm]
+    simp only [BoundedFormula.realize_relabel, BoundedFormula.realize_all, display_z''2]
+    intro
+    simp only [Nat.add_zero, iBdExsUniqueFv1, Formula.iBdExsUniqueComputable,
+      Formula.iExsComputable, DisplayedFV1.equivFin1, Fin.isValue, Equiv.coe_fn_mk,
+      Formula.eq_BoundedFormula, Formula.iInfComputable, peano.instAddTerm, x', y',
+      Formula.Finset.toListComputable, Equiv.coe_fn_symm_mk, List.ofFn_succ, List.ofFn_zero,
+      List.map_cons, List.map_nil, List.foldr_cons, List.foldr_nil, x'', z'', y'',
+      BoundedFormula.relabel_sup, BoundedFormula.castLE_rfl, Formula.iAllsComputable,
+      BoundedFormula.relabel_imp, BoundedFormula.relabel_inf, Nat.succ_eq_add_one, Nat.reduceAdd,
+      Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, BoundedFormula.realize_relabel,
+      Fin.natAdd_zero]
+    unfold BoundedFormula.exs BoundedFormula.alls
+    unfold BoundedFormula.exs BoundedFormula.alls
+    simp only [BoundedFormula.realize_ex]
+    rhs; intro;
+    simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.isValue, BoundedFormula.relabel_all,
+      Nat.add_eq, Nat.add_zero, BoundedFormula.relabel_imp, BoundedFormula.relabel_inf,
+      BoundedFormula.realize_inf, BoundedFormula.realize_relabel, Fin.castAdd_zero, Fin.cast_refl,
+      Function.comp_id, peano.realize_leq_to_leq', Term.realize_var, Sum.elim_inl,
+      Function.comp_apply, Sum.map_inr, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false,
+      ↓reduceDIte, Fin.reduceLast, cast_eq, Term.realize_relabel, peano.realize_add_to_add,
+      Sum.map_inl, id_eq, BoundedFormula.realize_top, and_true, BoundedFormula.realize_sup,
+      Fin.natAdd_zero, BoundedFormula.realize_bdEqual, BoundedFormula.realize_all,
+      BoundedFormula.realize_imp, BoundedFormula.realize_equal', Fin.natAdd_eq_addNat,
+      Fin.addNat_one, Fin.succ_zero_eq_one, Fin.coe_ofNat_eq_mod, Nat.mod_succ, Fin.reduceNatAdd,
+      Fin.reduceCastAdd, Nat.zero_mod, zero_lt_one, Fin.zero_eq_one_iff, OfNat.ofNat_ne_one,
+      not_false_eq_true, Fin.castLT_eq_castPred, Fin.castPred_zero, Fin.castSucc_zero]
+    right; intro;
+    unfold Formula.relabel
+    simp only [BoundedFormula.relabel_inf, Nat.add_zero, BoundedFormula.relabel_sup, Fin.isValue,
+      BoundedFormula.realize_inf, BoundedFormula.realize_relabel, Fin.castAdd_zero, Fin.cast_refl,
+      Function.comp_id, Fin.natAdd_zero, peano.realize_leq_to_leq', Term.realize_var, Sum.elim_inl,
+      Function.comp_apply, Sum.elim_inr, Sum.map_inr, Fin.snoc, Nat.reduceAdd, Fin.natAdd_eq_addNat,
+      Fin.addNat_one, Fin.succ_zero_eq_one, Fin.coe_ofNat_eq_mod, Nat.mod_succ, lt_self_iff_false,
+      ↓reduceDIte, Fin.reduceLast, Fin.reduceNatAdd, cast_eq, Term.realize_relabel,
+      peano.realize_add_to_add, Sum.map_inl, id_eq, Fin.val_eq_zero, BoundedFormula.realize_top,
+      and_true, BoundedFormula.realize_sup, BoundedFormula.realize_bdEqual, and_imp]
+
+  simp only [sup_Prop_eq]
+  intro x y
+  specialize ind ?_ ?_ x y
+  -- base case: B2, O2
+  · intro a
+    exists a
+    constructor
+    · constructor
+      · intro b
+        -- a <= a + 0. easy!
+        sorry
+      · right
+        -- 0 + a = a. easy!
+        sorry
+    · intro c hc hd
+      cases hd with
+      | inl hp =>
+        -- a + c = 0, prove c = a. easy!
+        sorry
+      | inr hq =>
+        -- 0 + c = a, prove c = a. easy!
+        sorry
+  -- induction step: B3, B4, D1
+  · intro a hInd b
+    cases hInd b with
+    | intro w h =>
+      have prevRes := h.left.right
+      cases prevRes with
+      | inl hp =>
+        exists (w + 1)
+        constructor
+        · constructor
+          · rw [<- hp]
+            -- w <= b + b + w
+            sorry
+          · left
+            rw [<- hp]
+            sorry
+        · intro cand2 hCandSmall hCandRes
+          rw [<- hp] at hCandRes
+          sorry
+      | inr hq =>
+        by_cases is_w_w : w = 0
+        · exists 1
+          constructor
+          · constructor
+            · sorry
+            · left; sorry
+          · intro cand hCandSmall hCandRes
+            rw [is_w_w] at hq
+            have hq' : a = b := by
+              rw [<- hq]
+              sorry
+            rw [hq'] at hCandRes
+            cases hCandRes with
+            | inl hCandResL => sorry
+            | inr HCandResR =>
+              exfalso
+              sorry
+        · obtain ⟨pred, ⟨hpred1, hpred2⟩⟩ := idelta0_ex3_9_d1 M w is_w_w
+          exists pred
+          constructor
+          · constructor
+            · have h_PredSmall := h.left.left
+              rw [hpred2] at h_PredSmall
+              sorry
+            · right
+              -- use a + w = b, w = pred + 1
+              sorry
+          · intro cand hCandSmall hCandRes
+            cases hCandRes with
+            | inl hCandResL =>
+              rw [<- hq] at hCandResL
+              rw [hpred2] at hCandResL
+              sorry
+            | inr hCandResR =>
+              rw [<- hq] at hCandResR
+              rw [hpred2] at hCandResR
+              sorry
+
+  obtain ⟨indRes, indH⟩ := ind
+  exists indRes
+  constructor
+  · simp
+    exact indH.left.right.symm
+  · intro candidate2
+    simp
+    intro candH
+    have candH_small : candidate2 <= y + x := by
+      sorry
+    apply indH.right candidate2 candH_small
+    exact candH.symm
 
 
-    -- Alternatively (suggested by apply?):
-    -- exact congrFun (congrArg HAdd.hAdd (hInd x y)) 1
-
--- structure IDelta0Model extends BASICModel where
---   delta0_induction {n} :
---     ∀ (phi_syntax : peano.BoundedFormula Empty (n + 1)),
---     isDelta0 phi_syntax ->
---     -- phi(0)
---     realize_at toBASICModel phi_syntax zero ->
---     -- (∀ x : num, φ x -> φ (add x one)) ->
---     (forall x : num,
---       realize_at toBASICModel phi_syntax x ->
---       realize_at toBASICModel phi_syntax (add x one)
---     ) ->
---     -- ∀ x, φ x
---     (forall x : num, realize_at toBASICModel phi_syntax x)
+-- Limited subtraction: The function x -' y := max(0, x - y) is Delta0-definable in IDelta0
+-- First, define the relation by the defining axiom
+def limited_subtraction_graph : peano.Formula DisplayedFV3 :=
+  ((y'' + z'') =' x'') ⊔ (x'' <=' y'' ⊓ z'' =' 0)
 
 
--- -- Section 3.3.3 Defining y=2^x and BIT(i, x) in IDelta0 (Draft; p.53 of draft, p.64 of pdf)
-
--- -- Limited subtraction: The function x -' y := max(0, x - y) is Delta0-definable in IDelta0
--- -- First, define the relation by the defining axiom
--- def limited_subtraction_graph_def {a} (x y z : peano.Term a) :=
---   max ((y + z = x)) (x <= y ∧ z = 0)
-
--- -- z = x -' y IFF ( (y+z=x) or (x <= y AND z = 0)) IFF phi(x, y, z)
--- -- Then prove uniqueness
--- IDelta0 proves forall x, forall y, e! z, phi(x, y, z)
-
-
-
--- relation y = 2^x is Delta0-definable in IDelta0, but function f(x)=2^x is not Sigma1-def.!
-
--- CONSERVATIVE EXTENSION: in the definition of new structure, allow symbols in the peanouage,
--- which are definable in IDelta0! this will allow us to make induction over formulas
--- with new symbols
-
-
-
--- Example 3.9 The following formulas (and their universal closures) are theorems of IDelta0:
--- D1. x neq 0 -> Exists y<=x . (x = y + 1) (Predecessor)
--- proof: induction on x
--- def pred_form :=
---   -- let x := var_term (1 : Fin 2)
---   -- let y := var_term (0 : Fin 2) -- y will actually be bound by a quatifier
---   let xneq0 := BoundedFormula.not $ BoundedFormula.equal (var_term (0 : Fin 2)) (const_term funcZero) -- here 'y' means actually our 'x'!!!! (deBruijn indices)
---   let rhs : peano.BoundedFormula Empty 2 := BoundedFormula.ex
---     (max
---       (BoundedFormula.rel relationLeq ![var_term (0 : Fin 2), var_term (1 : Fin 2)])
---       (BoundedFormula.equal
---         (var_term (1 : Fin 2))
---         (Term.func funcAdd ![var_term (0 : Fin 2), const_term funcOne]))
---     )
---   imp_form xneq0 rhs
-
--- def pred_form_shallow (M : IDelta0Model) := ∀ x, (x ≠ M.zero) -> ∃ y , (M.leq y x ∧ x = M.add x M.one)
-
--- def pred_form_deep (M : IDelta0Model) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (pred_form.alls) (Empty.elim) ![]
-
--- theorem idelta0_pred_iff (M : IDelta0Model) : pred_form_shallow M <-> pred_form_deep M := by {
---   apply Iff.intro
---   · intro h
---     unfold pred_form_deep
---     unfold pred_form
---     simp [BoundedFormula.Realize, eq_form, binary_func_term, var_term]
---     repeat unfold BoundedFormula.alls
---     simp
---     unfold pred_form_shallow at h
---     intros x y z
---     specialize h y
---     rw [<- Term.bdEqual]
---     simp
---     simp [FirstOrder.peanouage.Structure.funMap, Fin.snoc]
---     sorry
---   · sorry
--- }
-
-
--- D2. Exists z . (x + z = y or y + z = x)
--- proof: induction on x. Base case: B2, O2. Induction step: B3, B4, D1
--- def symm_diff_form :=
---   let
--- def add_assoc_frm :=
--- -- deBruijn indices
---   let x := var_term (2 : Fin 3)
---   let y := var_term (1 : Fin 3)
---   let z := var_term (0 : Fin 3)
---   let lhs := binary_func_term Functions2.add (binary_func_term Functions2.add x y) z
---   let rhs := binary_func_term Functions2.add x (binary_func_term Functions2.add y z)
---   eq_form lhs rhs
-
--- def add_assoc_frm_shallow (M : IOPENModel) := ∀ x y z, M.add (M.add x y) z = M.add x (M.add y z)
-
--- def add_assoc_frm_deep (M : IOPENModel) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_frm.alls) (Empty.elim) ![]
-
--- Exercise 3.10 Show that IDelta0 proves the division theorem:
--- IDelta0 |- Forall x y (0 < x -> Exists q . Exists (r < x) . y = x * q + r)
-
--- def division_form :=
---   let x := var_term (2 : Fin 3)
---   let y := var_term (1 : Fin 3)
---   let z := var_term (0 : Fin 3)
---   let lhs := binary_func_term Functions2.add (binary_func_term Functions2.add x y) z
---   let rhs := binary_func_term Functions2.add x (binary_func_term Functions2.add y z)
---   eq_form lhs rhs
-
--- def add_assoc_frm_shallow (M : IOPENModel) := ∀ x y z, M.add (M.add x y) z = M.add x (M.add y z)
-
--- def add_assoc_frm_deep (M : IOPENModel) := @BoundedFormula.Realize peano M.num (BASICModel_Structure M.toBASICModel) _ _ (add_assoc_frm.alls) (Empty.elim) ![]
-
+-- Section 3.3.3 Defining y=2^x and BIT(i, x) in IDelta0 (Draft; p.53 of draft, p.64 of pdf)
 
 -- Example 5.44 (The Pairing Function). We define the pairing function
 -- ⟨x, y⟩ as the following term of IΔ₀:
 
 -- Exercise 5.45 Show using the results in Section 3.1 that IΔ₀ proves ⟨x, y⟩
 -- is a one-one function. That is
-
--- def IDelta0Model.idelta0_pair x y :=
-
---   IDelta0Model.mul x y
 
 -- theorem idelta0_pair_one_one (M : IDelta0Model) : forall x1 x2 y1 y2, ⟨x1, y1⟩ = ⟨x2, y2⟩ -> (x1 = x2 ∧ y1 = y2) := by
 --   sorry
