@@ -93,9 +93,162 @@ namespace BoundedFormula
 --     ]
 --   ) ⊓ f ⊓ (forall y, y<=t -> phi(y) -> y = x0 )).ex
 
+inductive DisplayedFV1 | x deriving DecidableEq
+inductive DisplayedFV2 | x | y deriving DecidableEq
+inductive DisplayedFV3 | x | y | z deriving DecidableEq
+
+
+@[simp] def Empty.equivFin0 : Empty ≃ Fin 0 where
+  toFun fv := nomatch fv
+  invFun n := nomatch n
+  left_inv := by intro fv; cases fv
+  right_inv := by intro n; nomatch n
+
+@[simp] def DisplayedFV1.equivFin1 : DisplayedFV1 ≃ Fin 1 where
+  toFun fv := match fv with | .x => 0
+  invFun n := match n with | ⟨0, _⟩ => .x
+  left_inv := by intro fv; cases fv; · simp
+  right_inv := by intro n; match n with | ⟨0, _⟩ => simp
+
+@[simp] def DisplayedFV2.equivFin2 : DisplayedFV2 ≃ Fin 2 where
+  toFun fv := match fv with | .x => 0 | .y => 1
+  invFun n := match n with | ⟨0, _⟩ => .x | ⟨1, _⟩ => .y
+  left_inv := by (
+    intro fv
+    cases fv
+    · simp
+    · simp
+  )
+  right_inv := by (
+    intro n
+    match n with
+    | ⟨0, _⟩ => simp
+    | ⟨1, _⟩ => simp
+  )
+
+@[simp] def DisplayedFV3.equivFin3 : DisplayedFV3 ≃ Fin 3 where
+  toFun fv := match fv with | .x => 0 | .y => 1 | .z => 2
+  invFun n := match n with | ⟨0, _⟩ => .x | ⟨1, _⟩ => .y | ⟨2, _⟩ => .z
+  left_inv := by (
+    intro fv
+    cases fv
+    · simp
+    · simp
+    · simp
+  )
+  right_inv := by (
+    intro n
+    match n with
+    | ⟨0, _⟩ => simp
+    | ⟨1, _⟩ => simp
+    | ⟨2, _⟩ => simp
+  )
+
+/- Notes about de Bruijn indices as used in Mathlib.ModelTheory
+  Take a look at how is BoundedFormula.Realize implemented:
+  `| _, all f, v, xs => ∀ x : M, Realize f v (snoc xs x)`
+
+  Recall that  `Fin.snoc xs x` takes a tuple `xs : Fin n -> SomeType` and turns
+  it into a tuple with `x` appended at the end,
+  i.e. `xs' : Fin (n + 1) -> SomeType` with `n` mapped into `x`
+
+  Now, how is BoundedFormula.relabel implemented?
+  Not the way we want - we can only substitute a free var with a specific term,
+  but the term has to be different, depending on the quantifier depth of
+  the place where the free var occurs in the ofrmua
+
+  One attempt:: Mathlib.ModelTheory offers us constantsVarsEquiv function!
+  e.g. to move free vars into language constants: constantsVarsEquiv.symm phi.alls
+
+  Second attempt: use iAlls and special free var types carefully!
+--/
+
+@[simp] def x {k} : peano.Term (DisplayedFV1 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV1.x)
+@[simp] def x' {k} : peano.Term (DisplayedFV2 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV2.x)
+@[simp] def y' {k} : peano.Term (DisplayedFV2 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV2.y)
+@[simp] def x'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.x)
+@[simp] def y'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.y)
+@[simp] def z'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.z)
+
+-- IMPORTANT: this has to be done using relabelEquiv
+-- so we know by design that the relabel is a bijection!
+@[simp]
+def display_x (phi : peano.Formula DisplayedFV1) : peano.Formula (DisplayedFV1 ⊕ Empty) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+    | .x => Sum.inl .x
+    ),
+    invFun := (fun fv => match fv with | .inl _ => .x)
+    right_inv := by
+      refine Function.rightInverse_of_injective_of_leftInverse ?_ (congrFun rfl)
+      intro a b _
+      cases a with
+      | inl a' =>
+        cases b with
+        | inl b' => simp
+        | inr b' => apply Empty.elim b'
+      | inr a' => apply Empty.elim a'
+  }
+
+
+@[simp]
+def display_x' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inl .x
+  | .y => Sum.inr .x
+  )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+-- TODO: odwrocilem tutaj kolejnosc inl, inr. reszta teraz jest niekonsekwentnie
+@[simp]
+def display_y' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inl .x
+  | .y => Sum.inr .x
+  )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+@[simp]
+def display_x'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inl .x
+  | .y => Sum.inr .x
+  | .z => Sum.inr .y
+  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+@[simp]
+def display_y'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inr .x
+  | .y => Sum.inl .x
+  | .z => Sum.inr .y
+  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
+@[simp]
+def display_z'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
+  (phi.relabel ((fun fv => Sum.inl (match fv with
+  | .x => Sum.inr .x
+  | .y => Sum.inr .y
+  | .z => Sum.inl .x
+  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
+    simp only [Nat.zero_add]
+    rfl
+  )
+
 end BoundedFormula
 
 namespace Formula
+
 /-- Computable version of FirstOrder.Language.Formula.iAlls -/
 @[simp] def iAllsComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
   (BoundedFormula.relabel (fun a => Sum.map id e a) φ).alls
@@ -121,38 +274,6 @@ namespace Formula
   let _ : Fintype β := Fintype.ofFiniteComputable β e
   ((Finset.toListComputable e).map f).foldr (· ⊓ ·) ⊤
 
-@[simp]
-theorem realize_iInfComputable {L : Language} {M} [L.Structure M] {α β} {n} {k} (e : β ≃ Fin k) {f : β → L.BoundedFormula α n}
-    {v : α → M} {v' : Fin n → M} :
-    (iInfComputable e f).Realize v v' ↔ ∀ b, (f b).Realize v v' := by
-  simp only [iInfComputable, Finset.toListComputable, List.map_ofFn,
-    BoundedFormula.realize_foldr_inf, List.mem_ofFn, Function.comp_apply, forall_exists_index,
-    forall_apply_eq_imp_iff]
-  rw [Equiv.forall_congr' e.symm]
-  rw [@_root_.Equiv.symm_symm]
-  rw [<- e.invFun_as_coe]
-  rw [<- e.toFun_as_coe]
-  intro
-  rw [<- Function.comp_apply (f := e.invFun) (g := e.toFun)]
-  rw [e.left_inv.id]
-  rfl
-
--- @[simp]
--- theorem realize_iAllsComputable {L : Language} {M} [L.Structure M] {α β} {n} {k} (e : β ≃ Fin k) {f : L.Formula (α ⊕ β)}
---     {v : α → M} :
---     (iAllsComputable e f).Realize v ↔ ∀ b, (f b).Realize v := by
---   simp only [iInfComputable, Finset.toListComputable, List.map_ofFn,
---     BoundedFormula.realize_foldr_inf, List.mem_ofFn, Function.comp_apply, forall_exists_index,
---     forall_apply_eq_imp_iff]
---   rw [Equiv.forall_congr' e.symm]
---   rw [@_root_.Equiv.symm_symm]
---   rw [<- e.invFun_as_coe]
---   rw [<- e.toFun_as_coe]
---   intro
---   rw [<- Function.comp_apply (f := e.invFun) (g := e.toFun)]
---   rw [e.left_inv.id]
---   rfl
-
 @[simp] def iExsUniqueComputable {L : Language} {α β} {k} (e : β ≃ Fin k) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
   iExsComputable e <| φ ⊓ iAllsComputable e
     ((φ.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
@@ -163,11 +284,29 @@ theorem realize_iInfComputable {L : Language} {M} [L.Structure M] {α β} {n} {k
     ((φ.relabel (fun a => .inr a)).imp <|
       .iInfComputable e fun g => Term.equal (var (.inr g)) (var (.inl g)))
 
-@[simp] def iBdExsUniqueComputable {α β} {k} (e : β ≃ Fin k) (bdTerms : β -> peano.Term (α ⊕ Fin 0)) (φ : peano.Formula (α ⊕ β)) : peano.Formula α :=
-  let φ' : peano.Formula (α ⊕ β) := (Formula.iInfComputable e fun g => BoundedFormula.rel PeanoRel.leq ![var (.inl (.inr g)), (bdTerms g).relabel (Sum.map (fun c => .inl c) id)]) ⊓ φ
-  iExsComputable e <| φ' ⊓ iAllsComputable e
-    ((φ'.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
-      .iInfComputable e fun g => Term.equal (var (.inr g)) (var (.inl (.inr g))))
+@[simp] def iBdExComputable {α} (bdTerm : peano.Term (α ⊕ Fin 0)) (φ : peano.Formula (α ⊕ BoundedFormula.DisplayedFV1)) : peano.Formula α :=
+  iExsComputable BoundedFormula.DisplayedFV1.equivFin1 (
+    BoundedFormula.rel PeanoRel.leq ![var (.inl (.inr (BoundedFormula.DisplayedFV1.x))), bdTerm.relabel (Sum.map .inl id)]
+    ⊓ φ
+  )
+
+@[simp] def iBdExUniqueComputable {α} (bdTerm : peano.Term (α ⊕ Fin 0)) (φ : peano.Formula (α ⊕ BoundedFormula.DisplayedFV1)) : peano.Formula α :=
+  iExsUniqueComputable BoundedFormula.DisplayedFV1.equivFin1 (
+    BoundedFormula.rel PeanoRel.leq ![var (.inl (.inr (BoundedFormula.DisplayedFV1.x))), bdTerm.relabel (Sum.map .inl id)]
+    ⊓ φ
+  )
+
+-- THIS IS FULL GENERALITY!
+-- Supports: ∃x ≤ t1() ∧ ∃y ≤ t2(x) ∧ ∃z ≤ t3(x, y) ∧ ... φ(x,y,z,⋯)
+-- @[simp] def iBdExsComputableAux {α} : {k : Nat} -> (bdTerms : (i : Fin k) -> peano.Term ((α ⊕ Fin i) ⊕ Fin 0)) -> (φ : peano.Formula (α ⊕ Fin k)) -> peano.Formula α
+-- | 0, _, φ => sorry
+-- | k + 1, bdTerms, φ => sorry
+
+@[simp] def iBdAllComputable {α} (bdTerm : peano.Term (α ⊕ Fin 0)) (φ : peano.Formula (α ⊕ BoundedFormula.DisplayedFV1)) : peano.Formula α :=
+  iAllsComputable BoundedFormula.DisplayedFV1.equivFin1 (
+    BoundedFormula.rel PeanoRel.leq ![var (.inl (.inr (BoundedFormula.DisplayedFV1.x))), bdTerm.relabel (Sum.map .inl id)]
+    ⟹ φ
+  )
 
 end Formula
 
@@ -283,118 +422,120 @@ abbrev isOpen {a} {n} (formula : peano.BoundedFormula a n) := FirstOrder.Languag
 inductive IsDelta0 {a : Type u} : {n : Nat} -> peano.BoundedFormula a n -> Prop
 | of_isQF {phi} (h : BoundedFormula.IsQF phi) : IsDelta0 phi
 | imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
-| bdEx {n}
-  {phi : peano.BoundedFormula a (n + 1)}  -- `x` is represented by label `Sum.inr n`
-  {t : peano.Term (a ⊕ Fin n)} -- 'If the variable `x` does not occur in the term `t`'
-  (h : IsDelta0 phi)
-  :
-  -- TODO: make it work in this alternative way
-  -- IsDelta0 $ namedEx $
-  --   ((Term.var (Sum.inl $ NameOrSpecial.special)) <=' (t.relabel $ Sum.map (fun n => NameOrSpecial.standard n) (Fin.succEmb n))) ⊓ phi
-  IsDelta0 $ ∃' (
-    (
-      -- if `phi` is at level `n + 1`, then `n` (highest index) is the deBruijn ind of `x`
-      (&(Fin.last n))  -- lift `n` into Term.var; this denotes just `x`
-      <='
-      (t.relabel $ Sum.map id (Fin.succEmb n))  -- lift `t` from lv `n` to lv `n + 1`
-    )
-    ⊓ phi
-  )
+| bdEx
+  (phi : peano.Formula (a ⊕ DisplayedFV1))
+  (t : peano.Term (a ⊕ Fin 0))
+  : IsDelta0 $ Formula.iBdExComputable t phi
 
-| bdAll {n}
-  {phi : peano.BoundedFormula a (n + 1)}
-  {t : peano.Term (a ⊕ Fin n)} -- 'If the variable `x` does not occur in the term `t`'...
-  (h : IsDelta0 phi)
-  :
-  IsDelta0 $ ∀' (
-    (&(Fin.ofNat (n + 1) n)) <=' (t.relabel $ Sum.map id (Fin.succEmb n))
-    ⟹ phi
-  )
+| bdAll
+  (phi : peano.Formula (a ⊕ DisplayedFV1))
+  (t : peano.Term (a ⊕ Fin 0))
+  : IsDelta0 $ Formula.iBdAllComputable t phi
+
+
+theorem IsDelta0.imp.mpr {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi.imp psi) := by
+  apply Iff.intro
+  · intro h
+    apply IsDelta0.imp
+    · exact h.left
+    · exact h.right
+  · intro h
+    cases h with
+    | of_isQF h' =>
+      cases h' with
+      | of_isAtomic h'' =>
+        cases h''
+      | imp hPhi hPsi =>
+        apply And.intro
+        · apply IsDelta0.of_isQF; exact hPhi
+        · apply IsDelta0.of_isQF; exact hPsi
+    | imp hPhi hPsi =>
+      apply And.intro
+      · exact hPhi
+      · exact hPsi
+
+theorem IsDelta0.not {a} {n} (phi : peano.BoundedFormula a n) : IsDelta0 phi <-> IsDelta0 phi.not := by
+  apply Iff.intro
+  · intro h
+    unfold BoundedFormula.not
+    apply IsDelta0.imp
+    · exact h
+    · constructor
+      constructor
+  · unfold BoundedFormula.not
+    rw [<- IsDelta0.imp.mpr]
+    intro h
+    exact h.left
+
+theorem IsDelta0.min {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi ⊓ psi) := by
+  unfold Min.min instMin
+  simp only
+  rw [<- IsDelta0.not]
+  rw [<- IsDelta0.imp.mpr]
+  rw [<- IsDelta0.not]
+
+theorem IsDelta0.max {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi ⊔ psi) := by
+  unfold Max.max instMax
+  simp only
+  rw [<- IsDelta0.imp.mpr]
+  rw [<- IsDelta0.not]
+
+theorem IsDelta0.foldr_inf {α} {n} (l : List (peano.BoundedFormula α n)) :
+  (l.foldr (· ⊓ ·) ⊤).IsDelta0 ↔ ∀ φ ∈ l, φ.IsDelta0 := by
+  induction l with
+  | nil =>
+    simp only [List.foldr_nil, List.not_mem_nil, IsEmpty.forall_iff, implies_true, iff_true]
+    constructor; apply BoundedFormula.IsQF.top
+  | cons φ l ih =>
+    simp only [List.foldr_cons, List.mem_cons, forall_eq_or_imp]
+    unfold Min.min instMin
+    simp only
+    rw [<- IsDelta0.not]
+    rw [<- IsDelta0.imp.mpr]
+    apply Iff.intro
+    · intro h
+      apply And.intro
+      · exact h.left
+      · apply ih.mp
+        rw [<- IsDelta0.not] at h
+        exact h.right
+    · intro h
+      apply And.intro
+      · exact h.left
+      · rw [<- IsDelta0.not]
+        apply ih.mpr
+        apply h.right
+
+theorem IsDelta0.iInfComputable {α β} {n k} (e : β ≃ Fin k) (f : β -> peano.BoundedFormula α n) :
+  (Formula.iInfComputable e f).IsDelta0 ↔ ∀ b, (f b).IsDelta0 := by
+  unfold Formula.iInfComputable
+  rw [IsDelta0.foldr_inf]
+  simp
+  rw [Equiv.forall_congr_left e]
+
+-- theorem IsDelta0.iExsComputable {α β} {n k} (e : β ≃ Fin k) (φ: peano.Formula (α ⊕ β)) :
+--   (Formula.iExsComputable e φ).IsDelta0 ↔ ∀ b, (f b).IsDelta0 := by
+--   unfold Formula.iInfComputable
+--   rw [IsDelta0.foldr_inf]
+--   simp
+--   rw [Equiv.forall_congr_left e]
+
+theorem IsDelta0.iBdExComputable {a} {bdTerm} {phi}
+  : IsDelta0 $ (Formula.iBdExComputable bdTerm phi : peano.BoundedFormula a 0) := by
+  unfold Formula.iBdExComputable
+  unfold Formula.iExsComputable
+  unfold BoundedFormula.exs
+  unfold BoundedFormula.exs
+  apply IsDelta0.bdEx
 
 end BoundedFormula
 
-/- Notes about de Bruijn indices as used in Mathlib.ModelTheory
-  Take a look at how is BoundedFormula.Realize implemented:
-  `| _, all f, v, xs => ∀ x : M, Realize f v (snoc xs x)`
-
-  Recall that  `Fin.snoc xs x` takes a tuple `xs : Fin n -> SomeType` and turns
-  it into a tuple with `x` appended at the end,
-  i.e. `xs' : Fin (n + 1) -> SomeType` with `n` mapped into `x`
-
-  Now, how is BoundedFormula.relabel implemented?
-  Not the way we want - we can only substitute a free var with a specific term,
-  but the term has to be different, depending on the quantifier depth of
-  the place where the free var occurs in the ofrmua
-
-  One attempt:: Mathlib.ModelTheory offers us constantsVarsEquiv function!
-  e.g. to move free vars into language constants: constantsVarsEquiv.symm phi.alls
-
-  Second attempt: use iAlls and special free var types carefully!
---/
-
-inductive DisplayedFV1 | x deriving DecidableEq
-inductive DisplayedFV2 | x | y deriving DecidableEq
-inductive DisplayedFV3 | x | y | z deriving DecidableEq
-
-@[simp] def Empty.equivFin0 : Empty ≃ Fin 0 where
-  toFun fv := nomatch fv
-  invFun n := nomatch n
-  left_inv := by intro fv; cases fv
-  right_inv := by intro n; nomatch n
-
-@[simp] def DisplayedFV1.equivFin1 : DisplayedFV1 ≃ Fin 1 where
-  toFun fv := match fv with | .x => 0
-  invFun n := match n with | ⟨0, _⟩ => .x
-  left_inv := by intro fv; cases fv; · simp
-  right_inv := by intro n; match n with | ⟨0, _⟩ => simp
-
-@[simp] def DisplayedFV2.equivFin2 : DisplayedFV2 ≃ Fin 2 where
-  toFun fv := match fv with | .x => 0 | .y => 1
-  invFun n := match n with | ⟨0, _⟩ => .x | ⟨1, _⟩ => .y
-  left_inv := by (
-    intro fv
-    cases fv
-    · simp
-    · simp
-  )
-  right_inv := by (
-    intro n
-    match n with
-    | ⟨0, _⟩ => simp
-    | ⟨1, _⟩ => simp
-  )
-
-@[simp] def DisplayedFV3.equivFin3 : DisplayedFV3 ≃ Fin 3 where
-  toFun fv := match fv with | .x => 0 | .y => 1 | .z => 2
-  invFun n := match n with | ⟨0, _⟩ => .x | ⟨1, _⟩ => .y | ⟨2, _⟩ => .z
-  left_inv := by (
-    intro fv
-    cases fv
-    · simp
-    · simp
-    · simp
-  )
-  right_inv := by (
-    intro n
-    match n with
-    | ⟨0, _⟩ => simp
-    | ⟨1, _⟩ => simp
-    | ⟨2, _⟩ => simp
-  )
+open BoundedFormula
 
 @[simp] def iAllsFv0 (phi: peano.Formula Empty) := phi.iAllsComputableEmpty Empty.equivFin0
 @[simp] def iAllsFv1 (phi: peano.Formula DisplayedFV1) := phi.iAllsComputableEmpty DisplayedFV1.equivFin1
 @[simp] def iAllsFv2 (phi: peano.Formula DisplayedFV2) := phi.iAllsComputableEmpty DisplayedFV2.equivFin2
 @[simp] def iAllsFv3 (phi: peano.Formula DisplayedFV3) := phi.iAllsComputableEmpty DisplayedFV3.equivFin3
-@[simp] def iExsUniqueFv1 {a} (phi: peano.Formula (a ⊕ DisplayedFV1)) := phi.iExsUniqueComputable DisplayedFV1.equivFin1
-@[simp] def iBdExsUniqueFv1 {a} (phi: peano.Formula (a ⊕ DisplayedFV1)) (terms : DisplayedFV1 -> peano.Term (a ⊕ Fin 0)) := phi.iBdExsUniqueComputable DisplayedFV1.equivFin1 terms
-
-@[simp] def x {k} : peano.Term (DisplayedFV1 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV1.x)
-@[simp] def x' {k} : peano.Term (DisplayedFV2 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV2.x)
-@[simp] def y' {k} : peano.Term (DisplayedFV2 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV2.y)
-@[simp] def x'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.x)
-@[simp] def y'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.y)
-@[simp] def z'' {k} : peano.Term (DisplayedFV3 ⊕ Fin k) := (peano.var $ Sum.inl DisplayedFV3.z)
 
 -- Section 3.1 Peano Arithmetic; draft page 34 (45 of pdf)
 @[simp] def B1_ax : peano.Formula DisplayedFV1 := (x + 1) ≠' 0
@@ -471,6 +612,8 @@ structure IOPENModel extends BASICModel where
     (h : a ≃ Fin k) :
     phi.isOpen -> (mkInductionSentence h phi).Realize num
 
+
+-- TODO: define it to use 'induction' tactic straight from Lean
 -- def IOPENModel.OpenRec {M : IOPENModel} {a : Type} {k}
 --   (phi : peano.BoundedFormula (DisplayedFV1 ⊕ a) 0)
 --   (h : a ≃ Fin k)
@@ -484,81 +627,194 @@ structure IOPENModel extends BASICModel where
 --   intro n
 
 
--- cant; fucking make this work idk why
--- def IOPENModel.ind_x (M : IOPENModel) (phi : peano.Formula DisplayedFV1) (h: phi.isOpen) : Prop :=
---   let relabeled : peano.Formula (DisplayedFV1 ⊕ Empty) := phi.relabel (fun fv => match fv with | .x => Sum.inl fv)
---   let h' : relabeled.isOpen := by {
---     unfold BoundedFormula.isOpen at h
---     unfold BoundedFormula.isOpen
---     apply BoundedFormula.IsQF.relabel
---     exact h
---   }
---   M.open_induction relabeled Empty.equivFin0 h'
-
--- def IOPENModel.ind_x' (M : IOPENModel) (phi : peano.Formula DisplayedFV2) :=
---   M.open_induction (phi.relabel (fun fv => match fv with
---   | .x => Sum.inl .x
---   | .y => Sum.inr .x -- it will be quantified over anyway
---   )) DisplayedFV1.equivFin1
+@[simp]
+theorem BoundedFormula.relabel_sup {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊔ ψ).relabel g = (φ.relabel g) ⊔ (ψ.relabel g) :=
+  rfl
 
 @[simp]
-def display_x (phi : peano.Formula DisplayedFV1) : peano.Formula (DisplayedFV1 ⊕ Empty) :=
-  phi.relabel (fun fv => match fv with
-  | .x => Sum.inl .x
-  )
+theorem BoundedFormula.relabel_inf {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabel g = (φ.relabel g) ⊓ (ψ.relabel g) :=
+  rfl
+
+theorem BoundedFormula.relabelEquiv_rel {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k} {ts : Fin k -> L.Term (a ⊕ Fin n)}
+  : ((BoundedFormula.rel R ts).relabelEquiv g : L.BoundedFormula b n) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n) :=
+by
+  rfl
+
+theorem BoundedFormula.terms_eq_rel_eq {L : Language} {k a n} {R : L.Relations k} (ts ts' : Fin k -> L.Term (a ⊕ Fin n)) : ts = ts' -> rel R ts = rel R ts' := by
+  intro h
+  exact congrArg (rel R) h
+
+
+-- define transport across equality!
+-- https://proofassistants.stackexchange.com/a/1745
+theorem BoundedFormula.zero_add {L : Language} {α} {n} :
+  L.BoundedFormula α n = L.BoundedFormula α (0 + n) :=
+by
+  rw [Nat.zero_add]
 
 @[simp]
-def display_x' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
-  (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inl .x
-  | .y => Sum.inr .x
-  )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
-    simp only [Nat.zero_add]
-    rfl
-  )
+theorem BoundedFormula.castLE_zero_add {L : Language} {α} {n} (h : n ≤ 0 + n) (φ : L.BoundedFormula α n) : φ.castLE h = BoundedFormula.zero_add ▸ φ := by
+  sorry
+
+theorem BoundedFormula.relabel_rel {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k} {ts : Fin k -> L.Term (a ⊕ Fin n)}
+  : ((BoundedFormula.rel R ts).relabel (fun fv => Sum.inl (g fv) : a -> b ⊕ Fin 0) : L.BoundedFormula b (0 + n)) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n).castLE (by exact Nat.le_add_left n 0) :=
+  -- : ((BoundedFormula.rel R ts).relabel (fun fv => Sum.inl (g fv) : a -> b ⊕ Fin 0) : L.BoundedFormula b (0 + n)) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n).castLE_zero_add :=
+by
+  -- rw [BoundedFormula.castLE_zero_add]
+  apply BoundedFormula.terms_eq_rel_eq
+  induction k with
+  | zero => exact List.ofFn_inj.mp rfl
+  | succ k ih =>
+    funext i
+    cases i using Fin.lastCases with
+    | last => sorry
+    | cast i => sorry
+    -- | zero =>
+    --   simp
+    --   cases (ts 0) with
+    --   | var t =>
+    --     cases t with
+    --     | inl nam => simp [relabelAux]
+    --     | inr ind =>
+    --       simp [relabelAux, Fin.castLE, Fin.cast]
+    --   | @func l f f_ts =>
+    --     simp [Term.relabel]
+    --     induction l with
+    --     | zero =>
+    --     simp [relabelAux]
+    --   congr
+    --   unfold relabelAux
+    --   funext x
+    --   rw [Function.comp_apply]
+    --   rw [Function.comp_apply]
+
+    --   rw [Fin.castLE_of_eq]
+    --   have aux : forall x, @Fin.cast n (0 + n) _ x = x := by
+    --     sorry
+
+    --   rw [aux]
+    --   simp [Fin.cast]
+
+
+
+
+  -- unfold Function.comp
+  -- funext
+  -- unfold relabelAux
+  -- rw [Term.relabel]
+  -- rw [Function.comp_apply]
+  -- simp only [castLE]
+  -- unfold Term.relabel
+  -- unfold BoundedFormula.relabel mapTermRel relabelAux Term.relabel id
+
+
+
+  -- simp only [id_eq, rel.injEq, heq_eq_eq, true_and]
+  -- simp
+
+
+  -- match k with
+  -- | 0 => rw [BoundedFormula.relabel_]
+  -- rw [BoundedFormula]
+
+-- theorem BoundedFormula.relabel_rel {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k} {ts} {n l}
+--   : ((BoundedFormula.rel R ts).relabel ((fun x : a => Sum.inl (g x)) : a -> b ⊕ (Fin n)) : L.BoundedFormula b n) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id))) : L.BoundedFormula b n) :=
+-- by
+--   simp
+
+-- theorem BoundedFormula.IsDelta0.relabelEquiv
+
+theorem BoundedFormula.IsDelta0.relabel {a b} (phi : peano.Formula a) (g : a ≃ b): BoundedFormula.IsDelta0 phi -> BoundedFormula.IsDelta0 (phi.relabel g) :=
+by
+  intro h
+  -- simp [BoundedFormula.relabelEquiv, mapTermRelEquiv]
+  simp [Formula.relabel]
+  cases phi with
+  | falsum =>
+    constructor
+    simp only [relabel_falsum, Nat.add_zero]
+    constructor
+  | equal =>
+    constructor
+    apply BoundedFormula.IsQF.relabel
+    cases h
+    assumption
+  | rel =>
+    constructor
+    apply BoundedFormula.IsQF.relabel
+    cases h
+    assumption
+  | imp pre post =>
+    rw [<- BoundedFormula.IsDelta0.imp.mpr] at h
+    apply BoundedFormula.IsDelta0.imp
+    · apply BoundedFormula.IsDelta0.relabel
+      exact h.left
+    · apply BoundedFormula.IsDelta0.relabel
+      exact h.right
+  | ex f =>
+    -- rw [BoundedFormula.relabel_ex]
+    cases h with
+    | of_isQF h' =>
+      cases h' with
+      | of_isAtomic h'' =>
+        cases h''
+    | bdEx phi t =>
+      rw [BoundedFormula.relabel_ex]
+      rw [BoundedFormula.relabel_inf]
+      rw [BoundedFormula.relabel_inf]
+
+      -- here we need to prove some lemma using BoundedFormula.mapTermRel
+      sorry
+      -- conv => arg 1; rhs; lhs; arg 2; rw [BoundedFormula.relabel_rel g]
+      -- apply BoundedFormula.IsDelta0.relabel
+      -- apply BoundedFormula.IsDelta0.bdEx
+  | all =>
+    sorry
+
+variable (L : Language) (α β n)
 
 @[simp]
-def display_y' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
-  (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inr .x
-  | .y => Sum.inl .x
-  )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
-    simp only [Nat.zero_add]
-    rfl
-  )
+theorem BoundedFormula.relabelEquiv_falsum (g : α ≃ β) {k} :
+    (falsum : L.BoundedFormula α k).relabelEquiv g = falsum :=
+  rfl
 
 @[simp]
-def display_x'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
-  (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inl .x
-  | .y => Sum.inr .x
-  | .z => Sum.inr .y
-  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
-    simp only [Nat.zero_add]
-    rfl
-  )
+theorem relabelEquiv_imp (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ.imp ψ).relabelEquiv g = (φ.relabelEquiv g).imp (ψ.relabelEquiv g) :=
+  rfl
 
-@[simp]
-def display_y'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
-  (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inr .x
-  | .y => Sum.inl .x
-  | .z => Sum.inr .y
-  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
-    simp only [Nat.zero_add]
-    rfl
-  )
+theorem BoundedFormula.IsDelta0.relabelEquiv {a b} (phi : peano.Formula a) (g : a ≃ b):
+  BoundedFormula.IsDelta0 phi <-> BoundedFormula.IsDelta0 (phi.relabelEquiv g) :=
+by
+  cases phi with
+  | falsum =>
+    apply Iff.intro <;> (intro; constructor; constructor)
+  | equal =>
+    apply Iff.intro <;> (intro; constructor; constructor; constructor)
+  | imp p q =>
+    apply Iff.intro
+    · intro h
+      rw [<- BoundedFormula.IsDelta0.imp.mpr] at h
+      apply BoundedFormula.IsDelta0.imp
+      · apply (BoundedFormula.IsDelta0.relabelEquiv _ g).mp
+        exact h.left
+      · apply (BoundedFormula.IsDelta0.relabelEquiv _ g).mp
+        exact h.right
+    · intro h
+      cases h with
+      | of_isQF h' =>
+        rw [relabelEquiv_imp] at h'
+        cases h' with
+        | of_isAtomic h'' => sorry
+          -- rw [relabelEquiv_imp] at h''
+        | imp =>  sorry
+      | imp => sorry
+  | rel => sorry
+  | ex => sorry
+  | all => sorry
 
-@[simp]
-def display_z'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV2) n :=
-  (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inr .x
-  | .y => Sum.inr .y
-  | .z => Sum.inl .x
-  )) : DisplayedFV3 -> ((DisplayedFV1 ⊕ DisplayedFV2) ⊕ Fin 0))).castLE (by
-    simp only [Nat.zero_add]
-    rfl
-  )
 
 -- @[simp]
 -- theorem distr2 {T T'} (v : T -> T') (f1 f2: DisplayedFV2 -> T)
@@ -601,17 +857,8 @@ def display_z'' {n} (phi : peano.BoundedFormula DisplayedFV3 n) : peano.BoundedF
 --   ((phi =' psi : L.Formula a).relabel f : L.BoundedFormula b (n + 0)) = (phi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) := by
 --   rfl
 
--- @[simp]
--- theorem BoundedFormula.relabel_sup {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
---     (φ ⊔ ψ).relabel g = (φ.relabel g) ⊔ (ψ.relabel g) :=
---   rfl
 
--- @[simp]
--- theorem BoundedFormula.relabel_inf {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
---     (φ ⊓ ψ).relabel g = (φ.relabel g) ⊓ (ψ.relabel g) :=
---   rfl
-
-attribute [simp] BoundedFormula.alls Sentence.Realize Formula.Realize Formula.relabel Fin.snoc
+attribute [simp] BoundedFormula.alls BoundedFormula.exs Sentence.Realize Formula.Realize Formula.relabel Fin.snoc
 
 namespace IOPENModel
 
@@ -720,13 +967,13 @@ by
 
   intro x y
   apply ind
-  · apply add_0_comm
+  · intro; rw [add_0_comm]
   · intro a hInd b
     rw [<- add_assoc]
     rw [hInd]
     rw [add_1_comm]
-    rw [add_1_comm]
     rw [add_assoc]
+    rw [hInd]
 
 -- O3. x · (y + z) = (x · y) + (x · z) (Distributive law)
 theorem mul_add
@@ -1017,7 +1264,35 @@ namespace IDelta0Model
 -- D1. x ≠ 0 → ∃ y ≤ x, x = y + 1  (Predecessor)
 theorem pred_exists (M : IDelta0Model.{_,_,_,0}) :
   ∀ x : M.num, x ≠ 0 → ∃ y, y ≤ x ∧ x = y + 1 :=
-by sorry
+by
+  have b1 := M.B1; have b2 := M.B2; have b3 := M.B3
+  have b4 := M.B4; have b5 := M.B5; have b6 := M.B6
+  have b7 := M.B7; have b8 := M.B8; have c := M.C
+  simp at b1 b2 b3 b4 b5 b6 b7 b8 c ⊢
+
+  have ind := M.delta0_induction (
+    -- TODO: NAPRAWIC TA FORMULE! znalezc dobry sposob na to
+    -- zeby uzywac i displayowac rozne zmienne naraz
+    display_x $ (x ≠' 0) ⟹ Formula.iBdExComputable (x) (display_y' $ x' =' (y' + 1))
+  ) Empty.equivFin0 (by
+    unfold display_x
+    rw [<- BoundedFormula.IsDelta0.relabelEquiv]
+    apply BoundedFormula.IsDelta0.imp
+    · constructor
+      apply BoundedFormula.IsQF.not
+      apply BoundedFormula.IsQF.of_isAtomic
+      apply BoundedFormula.IsAtomic.equal
+    · apply BoundedFormula.IsDelta0.iBdExComputable
+  )
+  simp at ind
+
+  intro x
+  apply ind
+  · intro a ha ha'
+    exists a
+    constructor
+    · apply b8
+    · rfl
 
 -- D2. ∃ z, (x + z = y ∨ y + z = x)
 theorem add_diff_exists (M : IDelta0Model.{_,_,_,0}) :
