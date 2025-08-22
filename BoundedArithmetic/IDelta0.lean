@@ -658,6 +658,9 @@ by
 theorem BoundedFormula.castLE_zero_add {L : Language} {α} {n} (h : n ≤ 0 + n) (φ : L.BoundedFormula α n) : φ.castLE h = BoundedFormula.zero_add ▸ φ := by
   sorry
 
+-- theorem BoundedFormula.relabel_rel' {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k} {ts : Fin k -> L.Term (a ⊕ Fin n)}
+--   : ((BoundedFormula.rel R ts).relabel (fun fv => Sum.inl (g fv) : a -> b ⊕ Fin 0) : L.BoundedFormula b (0 + n)) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n).castLE (by exact Nat.le_add_left n 0) :=
+
 theorem BoundedFormula.relabel_rel {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k} {ts : Fin k -> L.Term (a ⊕ Fin n)}
   : ((BoundedFormula.rel R ts).relabel (fun fv => Sum.inl (g fv) : a -> b ⊕ Fin 0) : L.BoundedFormula b (0 + n)) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n).castLE (by exact Nat.le_add_left n 0) :=
   -- : ((BoundedFormula.rel R ts).relabel (fun fv => Sum.inl (g fv) : a -> b ⊕ Fin 0) : L.BoundedFormula b (0 + n)) = (BoundedFormula.rel R (fun i => ((ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n))) : L.BoundedFormula b n).castLE_zero_add :=
@@ -781,9 +784,141 @@ theorem BoundedFormula.relabelEquiv_falsum (g : α ≃ β) {k} :
   rfl
 
 @[simp]
-theorem relabelEquiv_imp (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+theorem BoundedFormula.relabelEquiv_all {L : Language} {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α (k + 1)) :
+    φ.all.relabelEquiv g = (φ.relabelEquiv g).all := by
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  simp only [Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk]
+  conv => lhs; unfold mapTermRel
+  simp
+
+@[simp]
+theorem BoundedFormula.relabelEquiv_ex {L : Language} {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α (k + 1)) :
+    φ.ex.relabelEquiv g = (φ.relabelEquiv g).ex := by
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  simp only [Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk]
+  conv => lhs; unfold mapTermRel
+  simp
+
+@[simp]
+theorem BoundedFormula.relabelEquiv_imp (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
     (φ.imp ψ).relabelEquiv g = (φ.relabelEquiv g).imp (ψ.relabelEquiv g) :=
   rfl
+
+@[simp]
+theorem BoundedFormula.relabelEquiv_inf (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabelEquiv g = (φ.relabelEquiv g) ⊓ (ψ.relabelEquiv g) :=
+  rfl
+
+@[simp]
+theorem BoundedFormula.relabelEquiv_sup (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊔ ψ).relabelEquiv g = (φ.relabelEquiv g) ⊔ (ψ.relabelEquiv g) :=
+  rfl
+
+theorem BoundedFormula.IsAtomic.relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (h : φ.IsAtomic)
+    (f : α ≃ β) : (φ.relabelEquiv f).IsAtomic :=
+  IsAtomic.recOn h (fun _ _ => IsAtomic.equal _ _) fun _ _ => IsAtomic.rel _ _
+
+@[simp]
+theorem BoundedFormula.IsQF.imp.mpr {L : Language} {α} {m} {φ ψ : L.BoundedFormula α m} :
+    (φ.imp ψ).IsQF <-> (φ.IsQF ∧ ψ.IsQF) := by
+  constructor
+  · intro h
+    constructor
+    · cases h with
+      | of_isAtomic h' => cases h'
+      | imp pre post => exact pre
+    · cases h with
+      | of_isAtomic h' => cases h'
+      | imp pre post => exact post
+  · intro h
+    apply IsQF.imp h.left h.right
+
+theorem BoundedFormula.IsQF.relabelEquiv.mp {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : φ.IsQF) :
+    (φ.relabelEquiv f).IsQF :=
+  IsQF.recOn h isQF_bot (fun h => (h.relabelEquiv f).isQF) fun _ _ h1 h2 => h1.imp h2
+
+open BoundedFormula
+theorem BoundedFormula.IsQF.relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : (φ.relabelEquiv f).IsQF) :
+    φ.IsQF := by
+  induction φ with
+  | falsum => constructor
+  | equal => constructor; constructor
+  | imp pre post h_pre h_post =>
+    apply IsQF.imp
+    · apply h_pre
+      rw [relabelEquiv_imp] at h
+      rw [IsQF.imp.mpr] at h
+      exact h.left
+    · apply h_post
+      rw [relabelEquiv_imp] at h
+      rw [IsQF.imp.mpr] at h
+      exact h.right
+  | rel => constructor; constructor
+  | all =>
+    rw [BoundedFormula.relabelEquiv_all] at h
+    cases h with
+    | of_isAtomic h' => cases h'
+  | ex =>
+    rw [BoundedFormula.relabelEquiv_ex] at h
+    cases h with
+    | of_isAtomic h' => cases h'
+
+theorem BoundedFormula.IsQF.relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
+  (φ.relabelEquiv f).IsQF <-> φ.IsQF := ⟨IsQF.relabelEquiv.mpr f, IsQF.relabelEquiv.mp f⟩
+
+-- theorem BoundedFormula.IsQF.mapTermRel {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} {g : Nat -> Nat}  (ft: forall n, L.Term (α ⊕ (Fin n)) -> L.Term (β ⊕ Fin (g n))) (fr) (h) :
+--   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
+--   sorry
+
+theorem BoundedFormula.IsQF.mapTermRel {α β} {m : ℕ} {φ : peano.BoundedFormula α 0} {g : Nat -> Nat}  (ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))) (fr) (h) :
+  (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
+  sorry
+
+-- @[simp]
+-- theorem BoundedFormula.mapTermRel_iBdExComputable {α β} {m : ℕ} {t} {φ : peano.BoundedFormula (α ⊕ DisplayedFV1) 0} {g : Nat -> Nat}  (ft: forall n, peano.Term ((α ⊕ DisplayedFV1) ⊕ (Fin n)) -> peano.Term ((β ⊕ DisplayedFV1) ⊕ Fin (g n))) (fr) (h) :
+--   (Formula.iBdExComputable t φ).mapTermRel ft fr h = Formula.iBdExComputable (ft _ t) (φ.mapTermRel ft fr h) := by
+--   sorry
+
+@[simp]
+theorem BoundedFormula.IsDelta0.mapTermRel (φ : peano.BoundedFormula α 0) {g : Nat -> Nat} {ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))} {fr} {h}:
+    (φ.mapTermRel ft fr h).IsDelta0 <-> φ.IsDelta0 := by
+  constructor
+  · sorry
+  · intro h'
+    cases h' with
+    | of_isQF h'' =>
+      constructor
+      -- TODO: this doesn't work if IsQF.mapTermRel is not narrowed
+      -- down to 'peano' language only!
+      -- rw [@IsQF.mapTermRel peano _ _ _ _ _ ft fr h]
+      -- TODO: this doesn't work if IsQF.mapTermRel is not narrowed
+      -- down to 'peano' language only!
+      -- rw [<- BoundedFormula.IsQF.mapTermRel ft fr h] at h''
+      rw [IsQF.mapTermRel]
+      · exact h''
+      · exact 0 -- why do we need to do this?
+    | imp pre post =>
+      apply IsDelta0.imp
+      · rw [IsDelta0.mapTermRel]; exact pre
+      · rw [IsDelta0.mapTermRel]; exact post
+    | bdEx phi t =>
+      unfold Formula.iBdExComputable Formula.iExsComputable
+      unfold exs
+      unfold exs
+      rw [@relabel_inf]
+      unfold BoundedFormula.mapTermRel
+      unfold BoundedFormula.mapTermRel
+
+      simp
+      sorry
+    | bdAll =>
+      sorry
 
 theorem BoundedFormula.IsDelta0.relabelEquiv {a b} (phi : peano.Formula a) (g : a ≃ b):
   BoundedFormula.IsDelta0 phi <-> BoundedFormula.IsDelta0 (phi.relabelEquiv g) :=
@@ -794,7 +929,7 @@ by
   | equal =>
     apply Iff.intro <;> (intro; constructor; constructor; constructor)
   | imp p q =>
-    apply Iff.intro
+    constructor
     · intro h
       rw [<- BoundedFormula.IsDelta0.imp.mpr] at h
       apply BoundedFormula.IsDelta0.imp
@@ -803,16 +938,46 @@ by
       · apply (BoundedFormula.IsDelta0.relabelEquiv _ g).mp
         exact h.right
     · intro h
+      rw [relabelEquiv_imp] at h
       cases h with
       | of_isQF h' =>
-        rw [relabelEquiv_imp] at h'
         cases h' with
-        | of_isAtomic h'' => sorry
-          -- rw [relabelEquiv_imp] at h''
-        | imp =>  sorry
-      | imp => sorry
-  | rel => sorry
-  | ex => sorry
+        | of_isAtomic h'' =>
+          cases h''
+        | imp pre post =>
+          constructor
+          apply BoundedFormula.IsQF.imp
+          · rw [IsQF.relabelEquiv] at pre; exact pre
+          · rw [IsQF.relabelEquiv] at post; exact post
+      | imp pre' post' =>
+        apply IsDelta0.imp
+        -- recursive call, but on a smaller formula!
+        · rewrite [<- relabelEquiv] at pre'
+          exact pre'
+        · rewrite [<- relabelEquiv] at post'
+          exact post'
+  | rel =>
+    constructor <;> (intro; constructor; constructor; constructor)
+  | ex =>
+    constructor
+    · intro h
+      cases h with
+      | of_isQF h' =>
+        cases h' with
+        | of_isAtomic h'' =>
+          cases h''
+      | bdEx phi t =>
+        simp
+        sorry
+        -- apply IsDelta0.bdEx
+    · intro h
+      cases h with
+      | of_isQF h' =>
+        cases h' with
+        | of_isAtomic h'' =>
+          cases h''
+      simp at h
+      rw [relabelEquiv] at h
   | all => sorry
 
 
@@ -1271,8 +1436,6 @@ by
   simp at b1 b2 b3 b4 b5 b6 b7 b8 c ⊢
 
   have ind := M.delta0_induction (
-    -- TODO: NAPRAWIC TA FORMULE! znalezc dobry sposob na to
-    -- zeby uzywac i displayowac rozne zmienne naraz
     display_x $ (x ≠' 0) ⟹ Formula.iBdExComputable (x) (display_y' $ x' =' (y' + 1))
   ) Empty.equivFin0 (by
     unfold display_x
