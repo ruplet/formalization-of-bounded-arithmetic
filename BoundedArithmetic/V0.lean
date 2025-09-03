@@ -1,25 +1,24 @@
+-- This file demonstrates how we can encode the two-sorted logic used for V^0
+-- in single-sorted logic modeled by Mathlib.ModelTheory
+-- We use the idea described in section 4.5 Single-sorted logic interpretation
+-- (Draft p.82 = p.93 of pdf) (draft: https://www.karlin.mff.cuni.cz/~krajicek/cook-nguyen.pdf)
+
+-- NOTE: this file is older and while working on it, I wasn't sure how to properly work with
+-- free variables in formulas for induction / comprehension:
+-- - how to display one particular variable to be bound by the induction scheme
+-- - how to bypass 'bounded' (in mathlib's vocab) variables not being quantifiable over in the ModelTheory library
+-- I have better solutions for these problems in the IDelta0.lean file,
+-- these files for now contain the old, bad design
+-- in particular, the way I deal with de Bruijn indices in this file is super brittle
+
 import BoundedArithmetic.BoundedModelTheory.Basic
 import BoundedArithmetic.BoundedModelTheory.Syntax
 import BoundedArithmetic.BoundedModelTheory.Complexity
--- import BoundedArithmetic.BoundedModelTheory.Semantics
 import Mathlib.Tactic.Linarith
-
-
-
--- How to define special tactic language for easier proving in object logic?
--- concept: https://lean-forward.github.io/lean-together/2019/slides/hudon.pdf
--- shitty: https://github.com/unitb/temporal-logic/blob/amsterdam-talk/src/temporal_logic/tactic.lean
--- real?: https://github.com/leanprover-community/iris-lean/blob/master/src/Iris/ProofMode/Display.lean
-
-
-
--- Here, we use the idea described in section 4.5 Single-sorted logic interpretation
--- (Draft p.82 = p.93 of pdf)
--- to reason about two-sorted logic in a single-sorted one.
 
 namespace FirstOrder
 
--- we use different way to represent the language, using this idea from July 22 2025:
+-- to represent the language, we use this idea from July 22 2025:
 -- https://github.com/leanprover-community/mathlib4/blob/909b3bebf314f6bcdb73d82d2a14f3f38a5bb5da/Mathlib/ModelTheory/Arithmetic/Presburger/Basic.lean#L30-L35
 
 -- Definition 4.4, Draft page 70 (page 81 of pdf)
@@ -59,15 +58,6 @@ def Lang : FirstOrder.Language :=
 -- When they are used as machine or circuit inputs, they are presented in unary
 -- notation.
 namespace Language.zambella
--- open FirstOrder.Language (Term BoundedFormula Formula Sentence)
-
--- def isOpen {a} [DecidableEq a] {n} (sentence: Lang.BoundedFormula a n) : Bool :=
--- match sentence with
--- | .falsum => true
--- | .equal _ _ => false -- please use our internal equation symbol!
--- | .rel _ _ => true
--- | .imp pre post => isOpen pre ∧ isOpen post
--- | .all _ => false
 
 @[simp] def isOpen {a} {n} [DecidableEq a] (formula : Lang.BoundedFormula a n) := FirstOrder.Language.BoundedFormula.IsQF formula
 
@@ -77,32 +67,6 @@ namespace Language.zambella
   else
     (Sum.inr $ @Fin.mk n 0 (Nat.pos_of_ne_zero h_eq)) ∈ t.varFinset
 
--- @[simp] def is_x_le_t_imp_A {a} [DecidableEq a] {n} (f : Lang.BoundedFormula a n) : Bool :=
---   match f with
---   | BoundedFormula.imp pre _ =>
---     match pre with
---     | @BoundedFormula.rel _ _ _ l R ts =>
---       if h_eq_2 : l = 2 then
---         let relationLeq : Lang.Relations 2 := V0Rel.leq
---         let R_as_rel2 : V0Rel 2 := Eq.mp (congrArg Lang.Relations h_eq_2) R
---         let term_vec_type (k : ℕ) := Fin k → Term Lang (a ⊕ (Fin n))
---         let ts_as_fin2 : term_vec_type 2 := Eq.mp (congrArg term_vec_type h_eq_2) ts
---         if R_as_rel2 == relationLeq then
---           let x_term := ts_as_fin2 (0 : Fin 2)
---           let t_term := ts_as_fin2 (1 : Fin 2)
---           -- Check if x_term is the de Bruijn index 0
---           (match x_term with
---            | Term.var (Sum.inr j) => j == (0 : Fin n)
---            | _ => false) &&
---           -- Check if t_term does NOT contain the de Bruijn index 0
---           !(contains_var_zero t_term)
---         else false
---       else false
---     | _ => false
---   | _ => false
-
-
--- def relationEq : Lang.Relations 2 := Relations2.eqsort
 @[simp] def relationLeq : Lang.Relations 2 := V0Rel.leq
 @[simp] def relationMem : Lang.Relations 2 := V0Rel.mem
 @[simp] def relationIsnum : Lang.Relations 1 := V0Rel.isnum
@@ -244,7 +208,6 @@ instance TwoSortedBASICModel_Structure (M : TwoSortedBASICModel) : Lang.Structur
 | 0, M, phi, term => @phi.Realize Lang M.sort (TwoSortedBASICModel_Structure M) _ _ (Empty.elim) ![term]
 | _ + 1, M, phi, term => realize_at M phi.all term
 
-
 -- TODO: DEBRUIJN: here I assumed 0 deBruijn index is the closest quantifier. but this does not seem to be right!
 -- for now, I changed 0 to n
 inductive IsSigma0B : {n : Nat} -> Lang.BoundedFormula Empty n -> Prop
@@ -254,17 +217,6 @@ inductive IsSigma0B : {n : Nat} -> Lang.BoundedFormula Empty n -> Prop
 | bdNumAll {n} {phi : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
 -- enable optional type implication
 | bdNumAll' {n} {phi : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (isnum_form (var_term (Fin.ofNat (n + 1) n))) $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
-
-
--- inductive IsNotContainsNthQuantifiedVar {n} : (nth : Nat) -> Lang.BoundedFormula Empty n -> Prop
--- | mk0 nth phi (_ : n = 0) : IsNotContainsNthQuantifiedVar nth phi
--- | mk nth phi (h_eq : n ≠ 0) (_ : (Sum.inr $ @Fin.mk n nth (Nat.pos_of_ne_zero h_eq)) ∉ phi.varFinset): IsNotContainsNthQuantifiedVar nth phi
-
--- def contains_var_zero {a} [DecidableEq a] {n} (t : Lang.Term (a ⊕ Fin n)) : Bool :=
---   if h_eq : n = 0 then
---     false
---   else
---     (Sum.inr $ @Fin.mk n 0 (Nat.pos_of_ne_zero h_eq)) ∈ t.varFinset
 
 def TwoSortedBASICModel.lt (M : TwoSortedBASICModel) (x y : M.sort) : Prop :=
   M.leq x y ∧ x ≠ y
@@ -332,8 +284,6 @@ instance V0Model_Structure (M : V0Model) : Lang.Structure M.sort :=
 
 -- Lemma 5.6 (p. 87 Draft / 98 of pdf); V^0 ⊢ X-MIN
 
-
-
 -- phi(z) := forall y' <= z, ¬X(y')
 -- the final comprehension axiom acquired will go:
 -- forall y, exists Y <= y, forall z < |X|, mem z Y ↔ (forall y' <= z, ¬X(y'))
@@ -399,13 +349,6 @@ theorem v0_xmin (M : V0Model) : v0_xmin_form_shallow M := by
   simp [BoundedFormula.Realize] at h_Y_content
   simp [FirstOrder.Language.Structure.RelMap] at h_Y_content
   simp [Fin.snoc] at h_Y_content
-  -- simplify dite (4 : Fin 5) < (4 : Nat)
-  -- simp (config := { decide := true }) at h_Y_content
-  -- try simplify [X, z, Y, M.len X][↑3] = M.len X ?
-  -- cannot simplify yet, as 'z' is bound by a quantifier!
-  -- have c : forall z, [X, z, Y, M.len X][↑3] = M.len X := by
-  --   simp
-  -- rw [c] at h_Y_content
 
   -- [...] Thus the set Y consists of the numbers smaller than every element in X.
   -- Assuming 0 < |X| [h_X_len_pos], we will show that |Y| is the least member of X.
@@ -446,10 +389,13 @@ theorem v0_xmin (M : V0Model) : v0_xmin_form_shallow M := by
         apply Yc'
         intro a h_a_type h_a_leq_zero h_a_mem_X
         apply h_zero_not_mem_X
-        -- now, just prove that a = 0
+        -- now, prove that a = 0
         have h_a_eq_zero : a = M.zero := by
           apply M.B7 a M.zero h_a_type M.TypeZero
           · -- something's wrong witih simplifying the [] in h_a_leq_zero
+            -- have h'' := mt h_Y_content.mpr h_zero_not_mem_Y
+            rw [h_Y_empty] at h_Y_len
+            rw [M.E] at h_Y_len
             sorry
           · apply M.B9 a h_a_type
         rw [h_a_eq_zero] at h_a_mem_X
