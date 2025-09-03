@@ -1,4 +1,15 @@
-## 
+# Formalization of bounded arithmetic
+In this project, I explore a way to formalize the results from the field of bounded arithmetic, most notably from the book [Logical Foundations of Proof Complexity](https://www2.karlin.mff.cuni.cz/~krajicek/cook-nguyen.pdf) from 2010 by Stephen Cook and Phuong Nguyen.
+
+If successful, it could contribute towards:
+- providing a sensible way to certify computational complexity bounds of computer programs
+- providing a new way of extracting computer programs from mathematical theorems
+- perhaps getting a few logicians interested in formal verification
+
+For motivations and a brief introduction to why it is a promising direction, please see
+- my [presentation](aitp-presentation.pdf) for [AITP 2025](https://aitp-conference.org/2025/)
+- the [abstract](aitp-abstract.md) I had sent
+- the [reviews](aitp-reviews.md) it has received
 
 ## Problems with mathlib.ModelTheory in this project
 ### Single-sorted logic only
@@ -54,12 +65,12 @@ I found some pointers on how could it looks like:
 
 Obviously, our current approach is good enough and doesn't need improving the frontend for now.
 
+## Contact
+Please contact me at ruplet+bounded at ruplet dot com.
+
 ## History of the project
 This project is a part of my Master's thesis at the University of Warsaw.
 My Master's project was to answer how to design programming languages to capture precisely a particular complexity class.
 The works are in a [separate repository](https://github.com/ruplet/oracles).
 
 This project, as my whole Master's program, has been supported by the [ZSM IDUB program](https://inicjatywadoskonalosci.uw.edu.pl/dzialania/iii-2-2/ios/).
-
-In September 2025, it has been presented at [AITP 2025](https://aitp-conference.org/2025/).
-Please see the [abstract](aitp-abstract.md) I had sent, the [reviews](aitp-reviews.md) it has received and the [actual presentation](aitp-presentation.pdf).
