@@ -332,8 +332,6 @@ Here $\varphi(z)$ may have additional free variables of either sort besides $z$.
 For $i \ge 0$, the theory $V_i$ has vocabulary $L^2_A$ and is axiomatized by **2-BASIC** together with $\Sigma^B_i$-COMP.
 
 # Bibliography
-- Sam Buss' presentation at STOC 2025:  
-[https://feasible-math.org/events/CCT25/](https://feasible-math.org/events/CCT25/)  
 - Jiatu Li's introduction from 1st July 2025:  
 [https://eccc.weizmann.ac.il/report/2025/086/](https://eccc.weizmann.ac.il/report/2025/086/)  
 
