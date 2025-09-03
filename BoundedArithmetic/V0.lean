@@ -292,7 +292,7 @@ instance V0Model_Structure (M : V0Model) : Lang.Structure M.sort :=
 def v0_xmin_comp1_form :=
   -- now we're inside of the 'phi' above
   let y' := var_term (4 : Fin 5)
-  let z := var_term (3 : Fin 5)
+  let z := var_term (1 : Fin 5)
   let X := var_term (0 : Fin 5)
   all_form $ imp_form (isnum_form y') $ imp_form (leq_form y' z) (not_form $ mem_form y' X)
 
@@ -392,11 +392,7 @@ theorem v0_xmin (M : V0Model) : v0_xmin_form_shallow M := by
         -- now, prove that a = 0
         have h_a_eq_zero : a = M.zero := by
           apply M.B7 a M.zero h_a_type M.TypeZero
-          · -- something's wrong witih simplifying the [] in h_a_leq_zero
-            -- have h'' := mt h_Y_content.mpr h_zero_not_mem_Y
-            rw [h_Y_empty] at h_Y_len
-            rw [M.E] at h_Y_len
-            sorry
+          · exact h_a_leq_zero
           · apply M.B9 a h_a_type
         rw [h_a_eq_zero] at h_a_mem_X
         exact h_a_mem_X
