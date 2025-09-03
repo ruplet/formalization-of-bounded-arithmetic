@@ -11,9 +11,16 @@ For motivations and a brief introduction to why it is a promising direction, ple
 - the [abstract](aitp-abstract.md) I had sent
 - the [reviews](aitp-reviews.md) it has received
 
-## Problems with mathlib.ModelTheory in this project
+## Current todo list
+- it seems in reach to formalize that $I\Delta_0$ $\Delta_0$-defines the $\text{Exp}(x, y)$ relation.
+- the design has to be slightly altered, as now when proving theorems in $I\Delta_0$, we can't use already proved lemmas for $I\text{OPEN}$. Typeclasses should be utilized to enable this behaviour
+- a huge milestone for this project is to formalize that $V\text{TC}^0$ defines sorting
+- demonstrate how code can be extracted from constructive proofs of definability of functions
+- explore potential for proof automatization coming from finite axiomatizability of $V^0$
+
+## Problems in this project
 ### Single-sorted logic only
-The design is fundamentally single-sorted. When I started working on $V^0$, I re-wrote parts of the library to supports two sorts. It is feasible, but it is much easier to use explicit typing rules to encode two-sorted theory as a single-sorted one.
+The design of mathlib.ModelTheory is fundamentally single-sorted. When I started working on $V^0$, I re-wrote parts of the library to supports two sorts. It is feasible, but it is much easier to use explicit typing rules to encode two-sorted theory as a single-sorted one.
 This is demonstrated in [file V0.lean](BoundedArithmetic/V0.lean)
 
 ### Too classical
