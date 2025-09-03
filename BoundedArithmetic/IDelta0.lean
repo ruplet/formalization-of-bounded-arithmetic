@@ -1,10 +1,9 @@
+-- for a quick demo, jump straight to `theorem add_assoc`
 import Lean
 import BoundedArithmetic.BoundedModelTheory.Basic
 import BoundedArithmetic.BoundedModelTheory.Syntax
 import BoundedArithmetic.BoundedModelTheory.Complexity
 import BoundedArithmetic.BoundedModelTheory.Semantics
-
--- import BoundedArithmetic.MySimp
 
 open Lean Elab Term Meta Syntax
 
@@ -872,18 +871,10 @@ theorem BoundedFormula.IsQF.relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {�
 theorem BoundedFormula.IsQF.relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
   (φ.relabelEquiv f).IsQF <-> φ.IsQF := ⟨IsQF.relabelEquiv.mpr f, IsQF.relabelEquiv.mp f⟩
 
--- theorem BoundedFormula.IsQF.mapTermRel {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} {g : Nat -> Nat}  (ft: forall n, L.Term (α ⊕ (Fin n)) -> L.Term (β ⊕ Fin (g n))) (fr) (h) :
---   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
---   sorry
 
 theorem BoundedFormula.IsQF.mapTermRel {α β} {m : ℕ} {φ : peano.BoundedFormula α 0} {g : Nat -> Nat}  (ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))) (fr) (h) :
   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
   sorry
-
--- @[simp]
--- theorem BoundedFormula.mapTermRel_iBdExComputable {α β} {m : ℕ} {t} {φ : peano.BoundedFormula (α ⊕ DisplayedFV1) 0} {g : Nat -> Nat}  (ft: forall n, peano.Term ((α ⊕ DisplayedFV1) ⊕ (Fin n)) -> peano.Term ((β ⊕ DisplayedFV1) ⊕ Fin (g n))) (fr) (h) :
---   (Formula.iBdExComputable t φ).mapTermRel ft fr h = Formula.iBdExComputable (ft _ t) (φ.mapTermRel ft fr h) := by
---   sorry
 
 @[simp]
 theorem BoundedFormula.IsDelta0.mapTermRel (φ : peano.BoundedFormula α 0) {g : Nat -> Nat} {ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))} {fr} {h}:
@@ -958,70 +949,12 @@ by
           exact post'
   | rel =>
     constructor <;> (intro; constructor; constructor; constructor)
-  | ex =>
-    constructor
-    · intro h
-      cases h with
-      | of_isQF h' =>
-        cases h' with
-        | of_isAtomic h'' =>
-          cases h''
-      | bdEx phi t =>
-        simp
-        sorry
-        -- apply IsDelta0.bdEx
-    · intro h
-      cases h with
-      | of_isQF h' =>
-        cases h' with
-        | of_isAtomic h'' =>
-          cases h''
-      simp at h
-      rw [relabelEquiv] at h
+  | ex => sorry
   | all => sorry
 
 
--- @[simp]
--- theorem distr2 {T T'} (v : T -> T') (f1 f2: DisplayedFV2 -> T)
---   : v ∘ (fun fv : DisplayedFV2 => match fv with |.x => f1 .x |.y => f2 .y )
---   = (fun fv : DisplayedFV2 => match fv with |.x => v (f1 .x) |.y => v (f2 .y)) := by
---   ext a; cases a <;> simp
 
--- @[simp]
--- theorem distr3 {T T'} (v : T -> T') (f1 f2 f3: DisplayedFV3 -> T)
---   : v ∘ (fun fv : DisplayedFV3 => match fv with |.x => f1 .x |.y => f2 .y | .z => f3 .z)
---   = (fun fv : DisplayedFV3 => match fv with |.x => v (f1 .x) |.y => v (f2 .y) | .z => v ( f3 .z)) := by
---   ext a; cases a <;> simp
-
--- @[simp]
--- theorem realize_fun_eq {L : Language} {M} [L.Structure M] {α} {n} {φ : L.BoundedFormula α n} {v v' : α → M} {xs} : (h : v = v') -> (φ.Realize v xs ↔ φ.Realize v' xs) := by
---   intro h
---   rw [h]
-
--- @[simp]
--- theorem realize_fun_eq' {L : Language} {M} [L.Structure M] {α} {n} {φ : L.BoundedFormula α n} {v v' : α → M} {xs xs'}: (h : v = v') -> (h' : xs = xs') -> (φ.Realize v xs ↔ φ.Realize v' xs') := by
---   intro h h'
---   rw [h, h']
-
--- @[simp] theorem Formula.eq_BoundedFormula {L} {a} :
---   Formula L a = BoundedFormula L a 0 := rfl
-
--- theorem Formula.relabel_falsum {L : Language} {a b} (g : a -> b ⊕ Fin 0) :
---   (.falsum : L.Formula a).relabel g = .falsum :=
---   rfl
-
--- theorem BoundedFormula.relabel_bdEqual {L : Language} {a b} {n} (f : a -> b ⊕ (Fin n)) {k} (phi psi : L.Term (a ⊕ Fin k)) :
---   ((phi =' psi).relabel f : L.BoundedFormula b (n + k)) = (phi.relabel (fun fv => BoundedFormula.relabelAux f k fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f k fv)) := by
-  -- rfl
-
--- theorem Formula.relabel_bdEqual' {L : Language} {a b} {n} (f : a -> b) {k} (phi psi : L.Term a) :
---   ((Term.equal phi psi).relabel f : L.Formula b) = (phi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) := by
---   rfl
-
--- theorem Formula.relabel_bdEqual {L : Language} {a b} {n} (f : a -> b ⊕ (Fin n)) (phi psi : L.Term (a ⊕ Fin 0)) :
---   ((phi =' psi : L.Formula a).relabel f : L.BoundedFormula b (n + 0)) = (phi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) =' (psi.relabel (fun fv => BoundedFormula.relabelAux f 0 fv)) := by
---   rfl
-
+-- HERE, PROVING STARTS! ---------------------------------------------------
 
 attribute [simp] BoundedFormula.alls BoundedFormula.exs Sentence.Realize Formula.Realize Formula.relabel Fin.snoc
 
@@ -1276,15 +1209,18 @@ by
   intro x y
   apply ind
   · intro y
-    rw [b5]
-    rw [b5]
+    rw [c]
+    rw [one_mul]
+    rw [zero_mul]
+    rw [<- add_0_comm]
     rw [b3]
   · intro y hInd_y x
-    rw [b6]
+    -- this was already proved and suddenly the proof's all wrong
+    -- i made fat finger? or flakyness of `simp` with no `only`?
     rw [hInd_y]
-    rw [b6]
-    conv => lhs; rw [add_assoc]; right; rw [<- add_assoc]; left; rw [add_comm]
-    conv => rhs; rw [add_assoc]; right; rw [<- add_assoc]
+    sorry
+    -- conv => lhs; rw [add_assoc]; right; rw [<- add_assoc]; left; rw [add_comm]
+    -- conv => rhs; rw [add_assoc]; right; rw [<- add_assoc]
 
 -- O5. x · y = y · x (Commutativity of ·)
 theorem mul_comm
@@ -1504,160 +1440,3 @@ theorem mul_cancel_right (M : IDelta0Model.{_,_,_,0}) :
 by sorry
 
 end IDelta0Model
-
--- Example 3.9 D2; note that we bound the ∃ quantifier here! otherwise it doesn't make sense
-@[simp] def ex3_9_d2_frm : peano.Formula DisplayedFV3 := (x'' + z'') =' y'' ⊔ ((y'' + z'') =' x'')
-@[simp] def ex3_9_d2_frm_ex := iBdExsUniqueFv1 (display_z''2 ex3_9_d2_frm) (fun _ => x' + y')
-
-@[simp]
-theorem Term.realize_equal {L : Language} {M} [L.Structure M] {α} {v : α -> M} (t₁ t₂ : L.Term α) :
-    (Term.equal t₁ t₂).Realize v ↔ t₁.realize v = t₂.realize v := by
-  exact Formula.realize_equal
-
-@[simp]
-theorem BoundedFormula.realize_equal' {L : Language} {M} [h: L.Structure M] {α} {v : α -> M} (t₁ t₂ : L.Term α) {xs} :
-    BoundedFormula.Realize (Term.equal t₁ t₂) v xs ↔ t₁.realize v = t₂.realize v := by
-  let h' := @Formula.realize_equal _ _ h _ t₁ t₂ v
-  let h'' : xs = default := by
-    funext x
-    exfalso
-    apply Fin.elim0
-    exact x
-  unfold Formula.Realize at h'
-  rw [<- h''] at h'
-  exact h'
-
-theorem idelta0_ex3_9_d1 (M : IDelta0Model.{_, _, _, 0}) : ∀ x : M.num, x ≠ 0 -> (∃ y, y <= x ∧ x = y + 1) := by
-  sorry
-
-attribute [simp] BoundedFormula.exs BoundedFormula.alls Formula.relabel
-
--- O2
-theorem iopen_add_comm (M : IDelta0Model.{_, _, _, 0}) : forall x y : M.num, x + y = y + x := by
-  sorry
-
-theorem idelta0_ex3_9_d2 (M : IDelta0Model.{_, _, _, 0}) : ∀ x y : M.num, ∃! z, (x + z = y) ⊔ (y + z = x) := by
-  -- induction on x
-  have ind := M.delta0_induction (display_x' ex3_9_d2_frm_ex) DisplayedFV1.equivFin1 (by
-    sorry
-  )
-  have b1 := M.B1;
-  have b2 := M.B2
-  have b3 := M.B3
-  have b4 := M.B4
-  have b5 := M.B5
-  have b6 := M.B6
-  have b7 := M.B7
-  have b8 := M.B8
-  have c := M.C
-  -- simp at *
-  simp at ind
-  simp at b1 b2 b3 b4 b5 b6 b7 b8 c ⊢
-
-  intro x y
-  specialize ind ?_ ?_ x y
-  -- base case: B2, O2
-  · intro a
-    exists a
-    constructor
-    · constructor
-      · exact b8 a 0
-      · right
-
-    · intro c hc hd
-      cases hd with
-      | inl hp =>
-        -- a + c = 0, prove c = a. easy!
-
-      | inr hq =>
-        -- 0 + c = a, prove c = a. easy!
-        sorry
-  -- induction step: B3, B4, D1
-  · intro a hInd b
-    cases hInd b with
-    | intro w h =>
-      have prevRes := h.left.right
-      cases prevRes with
-      | inl hp =>
-        exists (w + 1)
-        constructor
-        · constructor
-          · rw [<- hp]
-            -- w <= b + b + w
-            sorry
-          · left
-            rw [<- hp]
-            sorry
-        · intro cand2 hCandSmall hCandRes
-          rw [<- hp] at hCandRes
-          sorry
-      | inr hq =>
-        by_cases is_w_w : w = 0
-        · exists 1
-          constructor
-          · constructor
-            · sorry
-            · left; sorry
-          · intro cand hCandSmall hCandRes
-            rw [is_w_w] at hq
-            have hq' : a = b := by
-              rw [<- hq]
-              sorry
-            rw [hq'] at hCandRes
-            cases hCandRes with
-            | inl hCandResL => sorry
-            | inr HCandResR =>
-              exfalso
-              sorry
-        · obtain ⟨pred, ⟨hpred1, hpred2⟩⟩ := idelta0_ex3_9_d1 M w is_w_w
-          exists pred
-          constructor
-          · constructor
-            · have h_PredSmall := h.left.left
-              rw [hpred2] at h_PredSmall
-              sorry
-            · right
-              -- use a + w = b, w = pred + 1
-              sorry
-          · intro cand hCandSmall hCandRes
-            cases hCandRes with
-            | inl hCandResL =>
-              rw [<- hq] at hCandResL
-              rw [hpred2] at hCandResL
-              sorry
-            | inr hCandResR =>
-              rw [<- hq] at hCandResR
-              rw [hpred2] at hCandResR
-              sorry
-
-  obtain ⟨indRes, indH⟩ := ind
-  exists indRes
-  constructor
-  · simp
-    exact indH.left.right.symm
-  · intro candidate2
-    simp
-    intro candH
-    have candH_small : candidate2 <= y + x := by
-      sorry
-    apply indH.right candidate2 candH_small
-    exact candH.symm
-
-
--- Limited subtraction: The function x -' y := max(0, x - y) is Delta0-definable in IDelta0
--- First, define the relation by the defining axiom
-def limited_subtraction_graph : peano.Formula DisplayedFV3 :=
-  ((y'' + z'') =' x'') ⊔ (x'' <=' y'' ⊓ z'' =' 0)
-
-
--- Section 3.3.3 Defining y=2^x and BIT(i, x) in IDelta0 (Draft; p.53 of draft, p.64 of pdf)
-
--- Example 5.44 (The Pairing Function). We define the pairing function
--- ⟨x, y⟩ as the following term of IΔ₀:
-
--- Exercise 5.45 Show using the results in Section 3.1 that IΔ₀ proves ⟨x, y⟩
--- is a one-one function. That is
-
--- theorem idelta0_pair_one_one (M : IDelta0Model) : forall x1 x2 y1 y2, ⟨x1, y1⟩ = ⟨x2, y2⟩ -> (x1 = x2 ∧ y1 = y2) := by
---   sorry
--- -- (First show that the LHS implies x₁ + y₁ = x₂ + y₂)
