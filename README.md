@@ -6,12 +6,15 @@ If successful, it could contribute towards:
 - providing a new way of extracting computer programs from mathematical theorems
 - perhaps getting a few logicians interested in formal verification
 
+Please see [the $I\Delta_0$ file](BoundedArithmetic/IDelta0.lean) for a demonstration.
+
 For motivations and a brief introduction to why it is a promising direction, please see
 - my [presentation](aitp-presentation.pdf) for [AITP 2025](https://aitp-conference.org/2025/)
 - the [abstract](aitp-abstract.md) I had sent
 - the [reviews](aitp-reviews.md) it has received
 
 ## Current todo list
+- we could probably do without modifying the mathlib.ModelTheory library (which now, modified, is in BoundedArithmetic/BoundedModelTheory)
 - it seems in reach to formalize that $I\Delta_0$ $\Delta_0$-defines the $\text{Exp}(x, y)$ relation.
 - the design has to be slightly altered, as now when proving theorems in $I\Delta_0$, we can't use already proved lemmas for $I\text{OPEN}$. Typeclasses should be utilized to enable this behaviour
 - a huge milestone for this project is to formalize that $V\text{TC}^0$ defines sorting
