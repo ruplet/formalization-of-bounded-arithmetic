@@ -310,6 +310,8 @@ intro x
 [https://github.com/ruplet/formalization-of-bounded-arithmetic](https://github.com/ruplet/formalization-of-bounded-arithmetic)
 ![QR code to the GitHub repo linked above](github-qr.svg)
 
+This project has been supported by the ZSM IDUB program at the University of Warsaw
+
 # Bonus: finite axiomatizability of $V^0$
 The theory $V^0$ is finitely axiomatizable[@Cook_Nguyen_2010].
 
