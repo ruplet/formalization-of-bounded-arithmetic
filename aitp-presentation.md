@@ -15,15 +15,13 @@ link-citations: true
 
 ::: incremental
 
-- Modern proof assistants formalize mathematics in very strong foundations  
-  - Higher-order logic, type theory, choice, quotients etc.
-- But: most theorems do not require this much power
-    - Stronger theories may have worse properties.
-    - If you can apply a 1000 different tactics at any point of the proof,
-    it's difficult to find the right one to progress
-    - Can make a Lean4 function `noncomputable` etc.
-- *Reverse mathematics* seeks to determine which axioms are actually required 
-- Goal: explore formalization in the weakest systems needed, not the strongest available
+- Proof assistants use strong foundations (HOL, CIC, choice, quotients).
+- Most theorems need far less.
+- Costs of strength:
+  - Huge tactic space -> harder search.
+  - Loss of computational content (e.g., `noncomputable`).
+- Reverse mathematics seeks to determine which axioms are actually needed
+- **Aim:** formalize theorems in the weakest adequate system.
 :::
 
 ::: notes
@@ -31,12 +29,37 @@ One of my first questions while learning Rocq and getting stuck in a proof: is t
 :::
 
 # Bounded arithmetic
-When you go lower, you ask - do you need to exhaustively search exponentialy many elements to prove the theorem?
-very computational!
-very clean relations between definability and complexity classes
+Bounded arithmetic studies some of the weakest arithmetical theories. Here, we will consider $I\Delta_0, V^0$.
 
-what can be proved? a lot! sorting etc.
-$$I\Delta_0 \vdash \phi(x, y)$$
+. . .
+
+At the bottom:
+
+\pause
+
+::: incremental
+- you are not able to prove the Pigeonhole Principle ($V^0 \nvdash PHP$)
+- nor that the exponential function is total! ($I\Delta_0 \nvdash \forall x \exists!y\; \exp(x, y)$)
+:::
+\pause
+You need to explicitly add strength, then can:
+
+. . .
+
+::: incremental
+- prove properties of binary addition ($I\Delta_0 \vdash \forall x \forall y \; x + y = y + x$)
+- define a sorting function
+- prove standard graph theorems.
+:::
+
+# The goals of this presentation
+1. Why formalize arithmetic?
+
+These theories correspond nicely to complexity classes.
+
+We want to formalize theorems of the form $I\Delta_0 \vdash \phi(x, y)$ to explore computational contents of the proofs.
+
+2. Demonstrate that it is possible to formalize it
 
 # The syntax of our theory: what it "$\phi(x, y)$"? Vocabulary
 First, this is our vocabulary (think of them just as some UTF8 symbols, no meaning at all):
@@ -90,7 +113,7 @@ We use any standard deduction system for **classical**, **first-order** logic.
 \pause
 Syntactic sugar: $A \to B := \neg A \lor B$.
 
-# 1-BASIC axioms
+# The axioms: what is $I\Delta_0$? 1-BASIC axioms
 Table: 1-BASIC axioms
 
 | Axiom | Statement |
@@ -111,9 +134,9 @@ Not much!
 \begin{itemize}
 \item<+-> Can we prove that addition is commutative? \uncover<+->{\textcolor{red}{\Large NO!}}
 \item<+-> Can we prove that addition is associative? \uncover<+->{\textcolor{red}{\Large NO!}}
+\end{itemize}
 <!-- \item<+-> Can we prove that $x \leq x$? \uncover<+->{\textcolor{red}{\Large NO!}}
 \item<+-> Can we prove that $0 \leq x$? \uncover<+->{\textcolor{red}{\Large NO!}} -->
-\end{itemize}
 
 # Axiom schema of induction
 **Definition (Induction Scheme).**  
@@ -123,11 +146,11 @@ $$
 $$
 where $\varphi\in\Phi$. $\varphi(x)$ may have free variables other than $x$.
 
-The theory having axioms **B1**-**B8**, together with induction for arbitrary formulas from our vocabulary, *is* the **Peano** arithmetic.
+\pause
 
-Peano arithmetic is capable of formalizing most of modern number-theory results.
+The theory having axioms **B1**-**B8**, together with induction for arbitrary formulas from our vocabulary, *is* the **Peano** arithmetic (a very strong system).
 
-It is an open problem if it is enough to formalize Wiles' proof of Fermat's Last Theorem.
+\pause
 
 By carefully controling $\Phi$, we obtain **interesting** theories.
 
@@ -191,7 +214,7 @@ For all of these, you need to prove existence and uniqueness of the result.
 
 . . .
 
-**BUT**: $I\Delta_0$ can't prove total the exponential function $(x \mapsto 2^x)$!  
+**BUT**: $I\Delta_0$ can't "prove total" the exponential function $(x \mapsto 2^x)$!  
 
 . . .
 
@@ -280,6 +303,13 @@ intro x
     · rfl
 ```
 
+
+# Thanks!
+
+<!-- qrencode -o github-qr.svg "https://github.com/ruplet/formalization-of-bounded-arithmetic" -t SVG -->
+[https://github.com/ruplet/formalization-of-bounded-arithmetic](https://github.com/ruplet/formalization-of-bounded-arithmetic)
+![QR code to the GitHub repo linked above](github-qr.svg)
+
 # Bonus: finite axiomatizability of $V^0$
 The theory $V^0$ is finitely axiomatizable[@Cook_Nguyen_2010].
 
@@ -290,11 +320,6 @@ Moreover, since the theories $VC$ expressing complexity classes $C$ are construc
 
 Perhaps $V^0$ is a good theory for automated proof search. I haven't managed to explore this direction yet.
 
-# Thanks!
-
-<!-- qrencode -o github-qr.svg "https://github.com/ruplet/formalization-of-bounded-arithmetic" -t SVG -->
-[https://github.com/ruplet/formalization-of-bounded-arithmetic](https://github.com/ruplet/formalization-of-bounded-arithmetic)
-![QR code to the GitHub repo linked above](github-qr.svg)
 
 # $V^0$ definition: 2-BASIC axioms
 Two sorts: unary numbers ($x, y, z, \dots$), binary strings ($X, Y, Z, \dots$).  
