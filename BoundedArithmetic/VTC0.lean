@@ -11,6 +11,12 @@ import Mathlib.Init
 -- - defining binary multiplication and proving its basic properties
 -- - Finite Szpilrajn's Theorem!
 
+-- TODOs:
+-- - of course we need to define this while in ModelTheory-matching style
+-- - provide nice machinery for extending V^0 with V^0-definable functions
+--   and predicates! This will get rid of `seq` and `numones` axioms
+-- - fix the ugly section-variables passing (passing `seq` as arg. everywhere)
+
 universe u
 variable {num str: Type u}
 variable [Zero num] [One num] [Add num] [Mul num] [LE num] [Membership num str]
