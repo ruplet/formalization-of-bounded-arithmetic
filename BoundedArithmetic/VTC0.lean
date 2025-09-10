@@ -191,6 +191,9 @@ theorem numones_image_le (a : num) (X H : str) (himage_def : image_def a X H):
   sorry
 
 -- Theorem IX.3.23. VTC^0 ⊢ PHP(a, X).
+-- please ignore `seq, numones, hVTC0` arguments, they're a pure technicaly
+-- `a`: number of holes
+-- `X`: 2D array with `X(i, j)` holds iff pigeon `i` is in hole `j`
 theorem PigeonholePrinciple (seq : num -> str -> num) (numones : num -> str -> num) (hVTC0 : VTC0 seq numones)
   (a : num) (X : str)
 : PHP a X :=
