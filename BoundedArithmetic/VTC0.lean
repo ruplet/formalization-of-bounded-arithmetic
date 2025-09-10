@@ -82,17 +82,10 @@ structure VTC0 where
   numones : ∀ (y : num) (X : str), NUMONES_ax seq y X
 
 section
-open VTC0
 
-variable (h : VTC0 seq)
-#check h
-#check VTC0.b3 h
-#check h.b3
-
-theorem leq_refl : ∀ x : num, x <= x := by
+theorem leq_refl (h : VTC0 seq) : ∀ x : num, x <= x := by
   intro x
-  apply h
-  -- conv => right; rw [<- h.b3 x]
-  -- apply M.b8
+  conv => right; rw [<- h.b3 x]
+  apply h.b8
 
 end
