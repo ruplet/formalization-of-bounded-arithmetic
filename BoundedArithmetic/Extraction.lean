@@ -199,17 +199,25 @@ theorem add_lt_cancel {x y z : num} :
 by
   sorry
 
+
+-- def Comprehension {m n}
+--   (phi : (Fin m -> num) -> (Fin n -> str) -> Prop)
+--   (nums : Fin m -> num)
+--   (strs : Fin n -> str) :=
+--   ∀ y, ∃ X : str, |X| <= y ∧ ∀ z, z < y -> (z ∈ X ↔ phi nums strs)
+
 def comprehension2 (OrigStr : str) :=
   -- sigma0B formula!
   let phi (X : str) (i : num) :=
     (i ∈ X ∧ ∃ j : num, j < i ∧ ¬ j ∈ X)
     ∨ (¬ i ∈ X ∧ ∀ j : num, j < i → j ∈ X)
-  ∀ y, ∃ X : str, |X| <= y ∧ ∀ z, z < y -> (z ∈ X ↔ phi OrigStr z)
+    ∀ y, ∃ X : str, |X| <= y ∧ ∀ z, z < y -> (z ∈ X ↔ phi OrigStr z)
 theorem Succ_total_unique (hV0 : V0 (num := num) (str := str)) (hDecEqNum := hDecEqNum)
   {X : str}
   (hComp : comprehension2 (num := num) (str := str) X)
   : ∃! Y, Succ_ax (num := num) (str := str) X Y :=
 by
+  have dupa : Nat := 7 * 9
   obtain ⟨Y, hY⟩ := hComp (|X| + 1)
   exists Y
   constructor
@@ -362,9 +370,85 @@ by
       intro i hi
       exact (eq_ext i).symm
 
+open Lean.Expr
+
+def logExprOrString (x : Sum Lean.Expr String) : Lean.MetaM Unit := do
+  match x with
+  | .inl e =>
+    let typ <- Lean.Meta.inferType e
+    -- Lean.logInfo typ
+    let fmt <- Lean.Meta.ppExpr e
+    Lean.logInfo m!"{fmt}"
+  | .inr s =>
+    Lean.logInfo m!"{s}"
+
+set_option pp.rawOnError true
+
+def getProofTerm (thm : Lean.Name) : Lean.MetaM Lean.Expr := do
+  let ci ← Lean.getConstInfo thm
+  return ci.value!
+
+#check Lean.BinderInfo
+#check Exists.casesOn
+#check Lean.Meta.forallTelescope
+
+partial def findExIntro (e : Lean.Expr) : Lean.MetaM Lean.Expr :=
+  match e with
+  -- here, we need to take care ourselves of binders introduced!
+  | lam name type body binderInfo =>
+    Lean.Meta.withLocalDecl name binderInfo type fun x => do
+      let newBody <- findExIntro (body.instantiate1 x)
+      Lean.Meta.mkLambdaFVars #[x] newBody
+  | forallE name type body binderInfo =>
+    Lean.Meta.withLocalDecl name binderInfo type fun x => do
+      let newBody <- findExIntro (body.instantiate1 x)
+      Lean.Meta.mkForallFVars #[x] newBody
+  | letE name type val body nondep =>
+    Lean.Meta.withLetDecl name type val (nondep := nondep) fun x => do
+      let newBody ← findExIntro (body.instantiate1 x)
+      Lean.Meta.mkLetFVars #[x] newBody
+  | e@(app _ _) => do
+    -- TODO: ideally, this case shouldn't be here, really...
+    -- we should have something more general
+    if isAppOfArity e ``Exists.casesOn 5 then
+      let args := getAppArgsN e 5
+      -- this is hcomp, so it outputs witness, but also the proof!
+      let witness_def := args[3]!
+      Lean.log witness_def
+      let raw_intro := args[4]!
+      let inst <- Lean.Meta.instantiateLambda raw_intro #[witness_def]
+      -- THIS ALMOST WORKS! BUT WE HAVE TO BIND ARGS[3] TO Y and hY,
+      -- not just to Y because the types dont match!
+      Lean.log inst
+      -- return <- findExIntro inst
+      return <- findExIntro $ Lean.mkApp raw_intro witness_def
+      -- Lean.log args[0]!
+      -- return <- findExIntro args[4]!
+
+    -- TODO: same with this. we want to not-detect `Exists.intro`
+    -- that proves some sub-lemma. We also potentially want to
+    -- detect other ways to construct `Exists` than this specific fn
+    else if isAppOfArity e ``Exists.intro 4 then
+      let args := getAppArgs e
+      let witness := args[2]!
+      let decl <- Lean.Meta.getFVarLocalDecl witness
+      Lean.log "below is value of decl of exintro"
+      Lean.log decl.value?
+      -- return e
+    return e
+  | e => do
+    Lean.log "unsuported expression!"
+    return e
+
+-- def extract (e : Lean.Expr) : Lean.MetaM Lean.Expr := match e with
+-- |
+
 run_meta do
-  let name := ``Succ_total_unique
-  let ci ← Lean.getConstInfo name
-  let val := ci.value!
-  -- | throwError m!"{Lean.MessageData.ofConstName name} has no value"
-  Lean.logInfo val
+  let term <- getProofTerm ``Succ_total_unique
+  let term <- findExIntro term
+  let typ <- Lean.Meta.inferType term
+  -- Lean.log typ
+
+  Lean.log term.ctorName
+  -- here, term is just: for some 'Y' in context, return 'Y'
+  Lean.log term
