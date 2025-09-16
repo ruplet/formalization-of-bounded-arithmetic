@@ -1,6 +1,8 @@
 import Lean.Meta.Constructions.RecOn
 import Lean.Meta.Reduce
 import Lean.Meta.Basic
+import Lean.Meta.Eval
+import Lean.Meta.Tactic
 
 universe u
 variable {num str: Type u}
@@ -208,6 +210,9 @@ by
 --   (strs : Fin n -> str) :=
 --   ∀ y, ∃ X : str, |X| <= y ∧ ∀ z, z < y -> (z ∈ X ↔ phi nums strs)
 
+
+-- code(Succ_total_unique) := fun (X : str) (hComp : comp2 ..) -> hComp (|X| + 1)
+
 def comprehension2 (OrigStr : str) :=
   -- sigma0B formula!
   let phi (X : str) (i : num) :=
@@ -219,7 +224,6 @@ theorem Succ_total_unique (hV0 : V0 (num := num) (str := str)) (hDecEqNum := hDe
   (hComp : comprehension2 (num := num) (str := str) X)
   : ∃! Y, Succ_ax (num := num) (str := str) X Y :=
 by
-  have dupa : Nat := 7 * 9
   obtain ⟨Y, hY⟩ := hComp (|X| + 1)
   exists Y
   constructor
@@ -374,52 +378,94 @@ by
 
 open Lean.Expr
 
-def logExprOrString (x : Sum Lean.Expr String) : Lean.MetaM Unit := do
-  match x with
-  | .inl e =>
-    let typ <- Lean.Meta.inferType e
-    -- Lean.logInfo typ
-    let fmt <- Lean.Meta.ppExpr e
-    Lean.logInfo m!"{fmt}"
-  | .inr s =>
-    Lean.logInfo m!"{s}"
-
 set_option pp.rawOnError true
 
 def getProofTerm (thm : Lean.Name) : Lean.MetaM Lean.Expr := do
   let ci ← Lean.getConstInfo thm
   return ci.value!
 
-
-#check Lean.BinderInfo
-#check Exists.rec
-#check Exists.casesOn
-#check Lean.Meta.forallTelescope
 #check Lean.Expr
 
-def logRaw (e : Lean.Expr) : Lean.MetaM Unit := do
-  Lean.withOptions (fun o =>
-      o.setBool `pp.notation false
-       |>.setBool `pp.all true
-       |>.setBool `pp.fullNames true
-       |>.setBool `pp.universes true
-       |>.setBool `pp.explicit true) do
-    Lean.logInfo m!"{← Lean.Meta.ppExpr e}"
+def getLenExpr (arg: Lean.Expr) : Lean.MetaM Lean.Expr := do
+  let lenTerm <- Lean.Meta.mkAppM ``List.length #[arg]
+  let oneTerm := Lean.mkNatLit 1
+  let natType := Lean.mkConst ``Nat
+  let natAddInst := Lean.mkConst ``instAddNat
+  let addFn := Lean.mkConst ``Add.add [Lean.levelZero]
+  return Lean.mkAppN addFn #[natType, natAddInst, lenTerm, oneTerm]
+
+
+-- mkComp (phi : Expr of type (i: num) -> Prop) -> Expression of type (Nat -> List Bool)
+-- def comprehension2 (OrigStr : str) :=
+--   -- sigma0B formula!
+--   let phi (X : str) (i : num) :=
+--     (i ∈ X ∧ ∃ j : num, j < i ∧ ¬ j ∈ X)
+--     ∨ (¬ i ∈ X ∧ ∀ j : num, j < i → j ∈ X)
+--   ∀ y, ∃ X : str, |X| <= y ∧ ∀ z, z < y -> (z ∈ X ↔ phi OrigStr z)
+
+def extractComprehension2 (compArg compLen : Lean.Expr) : Lean.MetaM Lean.Expr := do
+  -- extract (|X| + 1)
+  let ty <- Lean.Meta.inferType $ compLen.getAppFn.projExpr!
+  if isAppOf ty ``Add then
+    let ty <- Lean.Meta.inferType $ compLen.getAppArgs[0]!.getAppFn.projExpr!
+    if isAppOf ty ``HasLen then
+      -- let var := compLen.getAppArgs[0]!.getAppArgs[0]!
+      getLenExpr compArg
+    else
+      Lean.log "string length: bad format!"
+      return compArg
+  else
+    Lean.log "comprehension length: bad format!"
+    return compArg
+
+#check Option
+
+def exprListOfBool := (Lean.mkConst ``List [Lean.levelZero]).app $ Lean.mkConst ``Bool
+
+def convTypeIfInteresting (ty : Lean.Expr) : Lean.MetaM (Option Lean.Expr) := do
+  if ty.isFVar then
+    let typeUserName <- Lean.FVarId.getUserName ty.fvarId!
+    if typeUserName == `str then
+      return some $ exprListOfBool
+    else if typeUserName == `num then
+      return some $ Lean.mkConst ``Nat
+  return none
 
 partial def findExIntro (e : Lean.Expr) : Lean.MetaM Lean.Expr :=
   match e with
-  | lam name type body binderInfo =>
-    Lean.Meta.withLocalDecl name binderInfo type fun x => do
+  | lam name type body binderInfo => do
+    let newType <- convTypeIfInteresting type
+    let type :=
+      match newType with
+      | some newType => newType
+      | none => type
+    Lean.Meta.withLocalDecl name .default type fun x => do
       let newBody <- findExIntro (body.instantiate1 x)
-      Lean.Meta.mkLambdaFVars #[x] newBody
-  | forallE name type body binderInfo =>
-    Lean.Meta.withLocalDecl name binderInfo type fun x => do
+      match newType with
+      | some _ => Lean.Meta.mkLambdaFVars #[x] newBody
+      | none => return newBody
+  | forallE name type body binderInfo => do
+    let newType <- convTypeIfInteresting type
+    let type :=
+      match newType with
+      | some newType => newType
+      | none => type
+    Lean.Meta.withLocalDecl name .default type fun x => do
       let newBody <- findExIntro (body.instantiate1 x)
-      Lean.Meta.mkForallFVars #[x] newBody
-  | letE name type val body nondep =>
+      match newType with
+      | some _ => Lean.Meta.mkForallFVars #[x] newBody
+      | none => return newBody
+  | letE name type val body nondep => do
+    let newType <- convTypeIfInteresting type
+    let type :=
+      match newType with
+      | some newType => newType
+      | none => type
     Lean.Meta.withLetDecl name type val (nondep := nondep) fun x => do
-      let newBody ← findExIntro (body.instantiate1 x)
-      Lean.Meta.mkLetFVars #[x] newBody
+      let newBody <- findExIntro (body.instantiate1 x)
+      match newType with
+      | some _ => Lean.Meta.mkLetFVars #[x] newBody
+      | none => return newBody
   | e@(app _ _) => do
     -- TODO: ideally, this case shouldn't be here, really...
     -- we should have something more general
@@ -430,49 +476,68 @@ partial def findExIntro (e : Lean.Expr) : Lean.MetaM Lean.Expr :=
       let raw_intro := args[3]!
       let inst <- Lean.Meta.instantiateLambda raw_intro #[witness]
       return <- findExIntro inst
-      -- Lean.log inst
-      -- Lean.log args[2]!
-      -- let e' <- Lean.Meta.reduceAll e
-      -- return e
-      -- Lean.log e'
-      -- let ex := Lean.Expr.proj ``Exists 0 witness_pair
 
     -- TODO: same with this. we want to not-detect `Exists.intro`
     -- that proves some sub-lemma. We also potentially want to
     -- detect other ways to construct `Exists` than this specific fn
+    -- TODO: this is incorrect already for goal `∃x y, phi(x, y)`
     else if isAppOfArity e ``Exists.intro 4 then
-      Lean.log "intro!"
       let args := getAppArgs e
       let witness := args[2]!
-      -- logRaw witness
-      -- Lean.log witness
-      -- let decl <- Lean.Meta.getFVarLocalDecl witness
-      -- Lean.log decl.value?
-      -- return e
       return witness
 
+    -- 2. here, if we see a function application and we need it,
+    --    change it to expression calling a function ExtractedFnName(fn)
     let fn := getAppFn e
     let ty <- Lean.Meta.inferType fn
     if isAppOfArity ty ``comprehension2 6 then
-      Lean.log "comp!"
-      let args := getAppArgsN ty 6
-      let comp_arg := args[5]!
-      return comp_arg
+      let comp_arg := (getAppArgsN ty 6)[5]!
+      let comp_len := (getAppArgsN e 1)[0]!
+      return <- extractComprehension2 comp_arg comp_len
 
     Lean.log "unsuported application!"
     return e
   | e => do
     Lean.log "unsuported expression!"
     return e
--- set_option allowUnsafeReducibility true
+
+-- Assumption 1: we will only work with goals of the form 'exists x'.
+-- for goals 't := forall y, exists x..', define: for every y, we can extract from (t y)
+-- Assumption 2: the goal needs to be closed using the 'exists' tactic.
+-- we only detect Exists.intro
+
+def getInputExpr (X : List Bool) : Lean.Expr :=
+  match X with
+  | .nil =>
+    Lean.mkApp (Lean.mkConst ``List.nil [Lean.levelZero]) (Lean.mkConst ``Bool)
+  | .cons h t =>
+    let boolType := Lean.mkConst ``Bool
+    let headExpr := if h then Lean.mkConst ``true else Lean.mkConst ``false
+    let tailExpr := getInputExpr t
+    Lean.mkAppN (Lean.mkConst ``List.cons [Lean.levelZero]) #[boolType, headExpr, tailExpr]
+
+
+def logRaw (e : Lean.Expr) : Lean.MetaM Unit := do
+  Lean.withOptions (fun o =>
+      o.setBool `pp.notation false
+       |>.setBool `pp.all true
+       |>.setBool `pp.fullNames true
+       |>.setBool `pp.universes true
+       |>.setBool `pp.explicit true) do
+    Lean.logInfo m!"{← Lean.Meta.ppExpr e}"
+
+
+open Lean
+open Lean.Meta
+open Lean.Meta.Tactic
+
 
 run_meta do
   let term <- getProofTerm ``Succ_total_unique
   let term <- Lean.Meta.reduceAll term
-  let term <- findExIntro term
-  -- Lean.log term.ctorName
-  -- let typ <- Lean.Meta.inferType term
-  -- logRaw term
-  -- let term <- findExIntro term
+  let extracted <- findExIntro term
 
-  -- Lean.log term
+  let inp := getInputExpr [false, true, false, true, true, false, true]
+
+  let result <- Lean.Meta.reduce $ extracted.app inp
+  IO.println $ result
