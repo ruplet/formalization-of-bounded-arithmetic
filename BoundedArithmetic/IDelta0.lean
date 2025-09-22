@@ -995,8 +995,10 @@ by
     rw [b4]
     rw [b4]
     rw [<- (b2 (x + y + z) (x + (y + z)))]
+    -- Option 0! :)
+    rw [hInd]
     -- Option 1 (suggested by apply?):
-    apply congrFun (congrArg HAdd.hAdd (hInd x y)) 1
+    -- apply congrFun (congrArg HAdd.hAdd (hInd x y)) 1
     -- Option 2, more intuitively
     -- -- Auxiliary lemma (B2 in reverse) : x = y -> x + 1 = y + 1
     -- have b2_rev : forall (x y : M.num), x = y -> x + 1 = y + 1 := by {
