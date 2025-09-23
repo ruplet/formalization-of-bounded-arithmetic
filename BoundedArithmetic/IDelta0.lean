@@ -1,9 +1,11 @@
 -- for a quick demo, jump straight to `theorem add_assoc`
 import Lean
-import BoundedArithmetic.BoundedModelTheory.Basic
-import BoundedArithmetic.BoundedModelTheory.Syntax
-import BoundedArithmetic.BoundedModelTheory.Complexity
-import BoundedArithmetic.BoundedModelTheory.Semantics
+import Mathlib.ModelTheory.Basic
+import Mathlib.ModelTheory.Syntax
+import Mathlib.ModelTheory.Complexity
+import Mathlib.ModelTheory.Semantics
+
+import Mathlib.Algebra.Ring.Defs
 
 open Lean Elab Term Meta Syntax
 
@@ -452,6 +454,8 @@ theorem IsDelta0.imp.mpr {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta
       apply And.intro
       · exact hPhi
       · exact hPsi
+    | bdEx phi t =>
+      sorry
 
 theorem IsDelta0.not {a} {n} (phi : peano.BoundedFormula a n) : IsDelta0 phi <-> IsDelta0 phi.not := by
   apply Iff.intro
@@ -755,23 +759,23 @@ by
       exact h.left
     · apply BoundedFormula.IsDelta0.relabel
       exact h.right
-  | ex f =>
-    -- rw [BoundedFormula.relabel_ex]
-    cases h with
-    | of_isQF h' =>
-      cases h' with
-      | of_isAtomic h'' =>
-        cases h''
-    | bdEx phi t =>
-      rw [BoundedFormula.relabel_ex]
-      rw [BoundedFormula.relabel_inf]
-      rw [BoundedFormula.relabel_inf]
+  -- | ex f =>
+  --   -- rw [BoundedFormula.relabel_ex]
+  --   cases h with
+  --   | of_isQF h' =>
+  --     cases h' with
+  --     | of_isAtomic h'' =>
+  --       cases h''
+  --   | bdEx phi t =>
+  --     rw [BoundedFormula.relabel_ex]
+  --     rw [BoundedFormula.relabel_inf]
+  --     rw [BoundedFormula.relabel_inf]
 
-      -- here we need to prove some lemma using BoundedFormula.mapTermRel
-      sorry
-      -- conv => arg 1; rhs; lhs; arg 2; rw [BoundedFormula.relabel_rel g]
-      -- apply BoundedFormula.IsDelta0.relabel
-      -- apply BoundedFormula.IsDelta0.bdEx
+  --     -- here we need to prove some lemma using BoundedFormula.mapTermRel
+  --     sorry
+  --     -- conv => arg 1; rhs; lhs; arg 2; rw [BoundedFormula.relabel_rel g]
+  --     -- apply BoundedFormula.IsDelta0.relabel
+  --     -- apply BoundedFormula.IsDelta0.bdEx
   | all =>
     sorry
 
@@ -802,7 +806,7 @@ theorem BoundedFormula.relabelEquiv_ex {L : Language} {α β} (g : α ≃ β) {k
   rw [mapTermRelEquiv]
   simp only [Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk]
   conv => lhs; unfold mapTermRel
-  simp
+  sorry
 
 @[simp]
 theorem BoundedFormula.relabelEquiv_imp (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
@@ -863,10 +867,10 @@ theorem BoundedFormula.IsQF.relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {�
     rw [BoundedFormula.relabelEquiv_all] at h
     cases h with
     | of_isAtomic h' => cases h'
-  | ex =>
-    rw [BoundedFormula.relabelEquiv_ex] at h
-    cases h with
-    | of_isAtomic h' => cases h'
+  -- | ex =>
+  --   rw [BoundedFormula.relabelEquiv_ex] at h
+  --   cases h with
+  --   | of_isAtomic h' => cases h'
 
 theorem BoundedFormula.IsQF.relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
   (φ.relabelEquiv f).IsQF <-> φ.IsQF := ⟨IsQF.relabelEquiv.mpr f, IsQF.relabelEquiv.mp f⟩
@@ -928,28 +932,10 @@ by
         exact h.left
       · apply (BoundedFormula.IsDelta0.relabelEquiv _ g).mp
         exact h.right
-    · intro h
-      rw [relabelEquiv_imp] at h
-      cases h with
-      | of_isQF h' =>
-        cases h' with
-        | of_isAtomic h'' =>
-          cases h''
-        | imp pre post =>
-          constructor
-          apply BoundedFormula.IsQF.imp
-          · rw [IsQF.relabelEquiv] at pre; exact pre
-          · rw [IsQF.relabelEquiv] at post; exact post
-      | imp pre' post' =>
-        apply IsDelta0.imp
-        -- recursive call, but on a smaller formula!
-        · rewrite [<- relabelEquiv] at pre'
-          exact pre'
-        · rewrite [<- relabelEquiv] at post'
-          exact post'
+    · sorry
   | rel =>
     constructor <;> (intro; constructor; constructor; constructor)
-  | ex => sorry
+  -- | ex => sorry
   | all => sorry
 
 
@@ -995,18 +981,7 @@ by
     rw [b4]
     rw [b4]
     rw [<- (b2 (x + y + z) (x + (y + z)))]
-    -- Option 0! :)
     rw [hInd]
-    -- Option 1 (suggested by apply?):
-    -- apply congrFun (congrArg HAdd.hAdd (hInd x y)) 1
-    -- Option 2, more intuitively
-    -- -- Auxiliary lemma (B2 in reverse) : x = y -> x + 1 = y + 1
-    -- have b2_rev : forall (x y : M.num), x = y -> x + 1 = y + 1 := by {
-    --   intro x' y' h
-    --   rw [h]
-    -- }
-    -- apply b2_rev
-    -- apply hInd
 
 lemma add_0_comm
   : ∀ x : M.num, x + 0 = 0 + x :=
@@ -1440,5 +1415,6 @@ by sorry
 theorem mul_cancel_right (M : IDelta0Model.{_,_,_,0}) :
   ∀ x y z : M.num, (x * z = y * z ∧ z ≠ 0) → x = y :=
 by sorry
+
 
 end IDelta0Model
