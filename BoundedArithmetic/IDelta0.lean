@@ -206,8 +206,8 @@ def display_x' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFo
 @[simp]
 def display_y' {n} (phi : peano.BoundedFormula DisplayedFV2 n) : peano.BoundedFormula (DisplayedFV1 ⊕ DisplayedFV1) n :=
   (phi.relabel ((fun fv => Sum.inl (match fv with
-  | .x => Sum.inl .x
-  | .y => Sum.inr .x
+  | .x => Sum.inr .x
+  | .y => Sum.inl .x
   )) : DisplayedFV2 -> ((DisplayedFV1 ⊕ DisplayedFV1) ⊕ Fin 0))).castLE (by
     simp only [Nat.zero_add]
     rfl
@@ -955,6 +955,18 @@ variable (M : IOPENModel.{_, _, _, 0})
 -- TODO: not fixing the 'num'(?) universe level to 0 breaks everything.
 -- learn how to do universe polymorphism properly and fix this
 
+def num_induction_on
+  {motive : M.num -> Sort*}
+  (x : M.num)
+  (h0 :  motive 0)
+  (hs : motive 0 -> forall n, motive n -> motive (n + 1))
+  (ind_valid : motive 0 -> (∀n, motive n -> motive (n + 1)) -> ∀ n, motive n)
+  : motive x :=
+by
+  apply ind_valid
+  apply h0
+  apply (hs h0)
+
 -- O1. (x + y) + z = x + (y + z) (Associativity of +)
 -- proof: induction on z
 theorem add_assoc
@@ -1046,9 +1058,9 @@ by
   · intro a hInd b
     rw [<- add_assoc]
     rw [hInd]
-    rw [add_1_comm]
     rw [add_assoc]
-    rw [hInd]
+    rw [add_1_comm]
+    rw [<- add_assoc]
 
 -- O3. x · (y + z) = (x · y) + (x · z) (Distributive law)
 theorem mul_add
@@ -1185,19 +1197,16 @@ by
 
   intro x y
   apply ind
-  · intro y
-    rw [c]
-    rw [one_mul]
-    rw [zero_mul]
-    rw [<- add_0_comm]
+  · intro x
+    rw [b5]
+    rw [b5]
     rw [b3]
   · intro y hInd_y x
-    -- this was already proved and suddenly the proof's all wrong
-    -- i made fat finger? or flakyness of `simp` with no `only`?
+    rw [b6]
+    rw [b6]
     rw [hInd_y]
-    sorry
-    -- conv => lhs; rw [add_assoc]; right; rw [<- add_assoc]; left; rw [add_comm]
-    -- conv => rhs; rw [add_assoc]; right; rw [<- add_assoc]
+    conv => lhs; rw [add_assoc]; right; rw [<- add_assoc]; left; rw [add_comm]
+    conv => rhs; rw [add_assoc]; right; rw [<- add_assoc]
 
 -- O5. x · y = y · x (Commutativity of ·)
 theorem mul_comm
@@ -1349,7 +1358,8 @@ by
   simp at b1 b2 b3 b4 b5 b6 b7 b8 c ⊢
 
   have ind := M.delta0_induction (
-    display_x $ (x ≠' 0) ⟹ Formula.iBdExComputable (x) (display_y' $ x' =' (y' + 1))
+    -- here the x, x' in display_ don't make sense!
+    display_x $ (x ≠' 0) ⟹ Formula.iBdExComputable (x) (display_x' $ x' =' (y' + 1))
   ) Empty.equivFin0 (by
     unfold display_x
     rw [<- BoundedFormula.IsDelta0.relabelEquiv]
