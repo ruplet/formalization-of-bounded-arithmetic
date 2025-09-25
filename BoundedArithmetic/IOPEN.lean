@@ -315,10 +315,12 @@ by
     apply B2
     exact hq
 
--- lemma a (x : Nat) : x + 1 ≠ 0 := by
---   apply?
 
--- #check B1
+
+
+
+-- INSTANCES!
+
 
 theorem isAddRightRegular_one : IsAddRightRegular (1 : M) := by
   unfold IsAddRightRegular Function.Injective
@@ -345,23 +347,14 @@ instance : AddCommMonoid M where
   nsmul := nsmulRec
   add_comm := add_comm M
 
--- instance : IsRightCancelAdd M where
---   add_right_cancel := by
---     intro a
---     unfold IsAddRightRegular Function.Injective
---     simp
---     exact B2 a
---     intro a1 a2
---     simp
-
--- instance : AddZeroClass M where
---   zero_add := by
---     intro a
---     rw [<- add_zero_comm]
---     exact B5
--- instance : AddSemigroup M := inferInstance
--- instance : AddMonoid M := inferInstance
--- instance : AddLeftCancelSemigroup M := inferInstance
--- instance : AddLeftCancelMonoid M := inferInstance
+instance : Semiring M where
+  left_distrib := by
+    exact fun a b c ↦ IOPENModel.mul_add M a b c
+  right_distrib := by
+    intro a b c
+    rw [<- mul_comm]
+    rw [mul_add]
+    rw [mul_comm]
+    conv => lhs; rhs; rw [mul_comm]
 
 end IOPENModel

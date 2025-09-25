@@ -246,11 +246,19 @@ instance : IsOrderedMonoid M where
 instance : AddCommMonoid M where
 
 
+instance : IsOrderedRing M where
+  zero_le_one := by exact IOPENModel.zero_le M 1
+  mul_le_mul_of_nonneg_left := by
+    intro a b c hab h_zero_c
+    exact mul_le_mul_left' hab c
+  mul_le_mul_of_nonneg_right := by
+    exact fun a b c a_1 a_2 ↦ le_mul_right M a b c a_1
 
--- CommSemiring
--- instance : PartialOrder M where
--- instance : Semiring M where
--- instance : IsOrderedRing M where
--- instance : CommSemiring M where
+instance : CommSemiring M where
+
+instance : IsStrictOrderedRing M where
+  le_of_add_le_add_left := by
+
+
 
 end IDelta0Model
