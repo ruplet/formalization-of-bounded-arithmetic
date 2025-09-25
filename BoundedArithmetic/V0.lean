@@ -11,9 +11,9 @@
 -- these files for now contain the old, bad design
 -- in particular, the way I deal with de Bruijn indices in this file is super brittle
 
-import BoundedArithmetic.BoundedModelTheory.Basic
-import BoundedArithmetic.BoundedModelTheory.Syntax
-import BoundedArithmetic.BoundedModelTheory.Complexity
+import Mathlib.ModelTheory.Basic
+import Mathlib.ModelTheory.Syntax
+import Mathlib.ModelTheory.Complexity
 import Mathlib.Tactic.Linarith
 
 namespace FirstOrder
