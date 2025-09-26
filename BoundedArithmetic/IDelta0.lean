@@ -528,10 +528,37 @@ instance : IsOrderedRing M where
 
 instance : CommSemiring M where
 
-instance : IsStrictOrderedRing M where
-  le_of_add_le_add_left := by
-    intro a b c h
+noncomputable instance : LinearOrder M where
+  le_total := le_total M
+  min_def := by simp only [implies_true]
+  max_def := by exact fun a b ↦ rfl
+  compare_eq_compareOfLessAndEq := by
+    simp only [implies_true]
 
+  toDecidableLE := by
+    unfold DecidableLE DecidableRel
+    intro a b
+    if ha : a = 0 then
+      apply Decidable.isTrue
+      rw [ha]
+      apply zero_le M b
+    else
+      if hb : b = 0 then
+        apply Decidable.isFalse
+        rw [hb]
+        intro ha'
+        apply ha
+        exact le_zero_eq M a ha'
+      else
+        -- HERE, WE SHOULD TAKE PREDECESSOR OF
+        -- BOTH AND RECURSE!
+        exact Classical.propDecidable (a ≤ b)
+
+
+-- instance : IsStrictOrderedRing M where
+--   le_of_add_le_add_left := by
+--     intro a b c h
+--     rw [le_cancel_left]
 
 
 end IDelta0Model
