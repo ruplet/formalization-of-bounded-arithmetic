@@ -6,9 +6,10 @@ import BoundedArithmetic.DisplayedVariables
 import BoundedArithmetic.AxiomSchemes
 import BoundedArithmetic.Order
 import BoundedArithmetic.LanguagePeano
+import BoundedArithmetic.LanguageZambella
 import BoundedArithmetic.Complexity
 import BoundedArithmetic.Syntax
-import BoundedArithmetic.V0
+-- import BoundedArithmetic.V0
 import BoundedArithmetic.IDelta0
 import BoundedArithmetic.Register
 import BoundedArithmetic.SimpAttrs

@@ -15,15 +15,24 @@ namespace FirstOrder.Language.BoundedFormula
 namespace IsAtomic
 
 @[delta0_simps]
-theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (h : φ.IsAtomic)
-    (f : α ≃ β) : (φ.relabelEquiv f).IsAtomic :=
+theorem relabelEquiv.mp {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m}
+    (f : α ≃ β) (h : φ.IsAtomic) : (φ.relabelEquiv f).IsAtomic :=
   IsAtomic.recOn h (fun _ _ => IsAtomic.equal _ _) fun _ _ => IsAtomic.rel _ _
+
+theorem relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : (φ.relabelEquiv f).IsAtomic)
+     : φ.IsAtomic :=
+  sorry
+
+theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
+  (φ.relabelEquiv f).IsAtomic <-> φ.IsAtomic :=
+  ⟨relabelEquiv.mpr f, relabelEquiv.mp f⟩
 
 @[delta0_simps]
 theorem display {disp} [HasDisplayed disp] (phi : L.Formula disp):
   phi.display.IsAtomic <-> phi.IsAtomic :=
 by
-  sorry
+  unfold BoundedFormula.display
+  rw [relabelEquiv]
 
 end IsAtomic
 
@@ -54,7 +63,7 @@ by
       exact IsQF.falsum
     | of_isAtomic h =>
       constructor
-      apply IsAtomic.relabelEquiv
+      rw [IsAtomic.relabelEquiv]
       exact h
     | imp hphi hpsi =>
       rw [relabelEquiv.imp]
@@ -66,25 +75,8 @@ by
 @[delta0_simps]
 theorem display {disp} [HasDisplayed disp] (phi : L.Formula disp):
     phi.display.IsOpen <-> phi.IsOpen := by
-  constructor <;> intro h
-  · unfold IsOpen at h
-    -- dependent elimination failed on 'cases h' :(((
-    sorry
-  · cases h with
-    | falsum =>
-      unfold BoundedFormula.display
-      rw [relabelEquiv.falsum]
-      exact IsQF.falsum
-    | of_isAtomic h =>
-      constructor
-      rw [IsAtomic.display]; exact h
-    | imp hphi hpsi =>
-      rw [display.imp]
-      apply IsQF.imp
-        <;> rw [<- IsOpen]
-        <;> rw [IsOpen.display]
-        <;> assumption
-
+  unfold BoundedFormula.display
+  rw [relabelEquiv]
 
 end IsOpen
 
@@ -150,10 +142,10 @@ theorem relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula
 theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
   (φ.relabelEquiv f).IsQF <-> φ.IsQF := ⟨IsQF.relabelEquiv.mpr f, IsQF.relabelEquiv.mp f⟩
 
-@[delta0_simps]
-theorem mapTermRel {α β} {m : ℕ} {φ : peano.BoundedFormula α 0} {g : Nat -> Nat}  (ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))) (fr) (h) :
-  (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
-  sorry
+-- @[delta0_simps]
+-- theorem mapTermRel {α β} {m : ℕ} {φ : peano.BoundedFormula α 0} {g : Nat -> Nat}  (ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))) (fr) (h) :
+--   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
+--   sorry
 
 end IsQF
 
@@ -361,10 +353,10 @@ by
 
 
 
-@[delta0_simps]
-theorem mapTermRel {α β} (φ : peano.BoundedFormula α 0) {g : Nat -> Nat} {ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))} {fr} {h}:
-    (φ.mapTermRel ft fr h).IsDelta0 <-> φ.IsDelta0 := by
-  sorry
+-- @[delta0_simps]
+-- theorem mapTermRel {α β} (φ : peano.BoundedFormula α 0) {g : Nat -> Nat} {ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))} {fr} {h}:
+--     (φ.mapTermRel ft fr h).IsDelta0 <-> φ.IsDelta0 := by
+--   sorry
 
 @[delta0_simps]
 theorem relabelEquiv {a b} (phi : peano.Formula a) (g : a ≃ b):
@@ -385,4 +377,38 @@ by
 
 
 end IsDelta0
+
+
+
+
+-- namespace Sigma0B
+
+
+-- inductive IsDelta0 : {n : Nat} -> L.BoundedFormula a n -> Prop
+-- | imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
+-- | bdEx
+--   {disp} [HasDisplayed disp]
+--   (phi : L.Formula (a ⊕ disp))
+--   (t : L.Term (a ⊕ Fin 0))
+--   : IsDelta0 $ iBdEx' t phi
+
+-- | bdAll
+--   {disp} [HasDisplayed disp]
+--   (phi : L.Formula (a ⊕ disp))
+--   (t : L.Term (a ⊕ Fin 0))
+--   : IsDelta0 $ iBdAll' t phi
+-- | of_isQF {phi} (h : IsQF phi) : IsDelta0 phi
+
+
+-- inductive IsSigma0B : {n : Nat} -> Lang.BoundedFormula Empty n -> Prop
+-- | of_isQF {phi} (h : BoundedFormula.IsQF phi) : IsSigma0B phi
+-- -- bounded number quantifiers are allowed
+-- | bdNumEx  {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi):  IsSigma0B $ ex_form $ and_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+-- | bdNumAll {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+-- -- enable optional type implication
+-- | bdNumAll' {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (i_form (var_term (Fin.ofNat (n + 1) n))) $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+
+
+-- end Sigma0B
+
 end FirstOrder.Language.BoundedFormula
