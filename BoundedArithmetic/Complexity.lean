@@ -247,12 +247,45 @@ namespace IsDelta0
 --     intro h
 --     exact h.left
 
--- theorem min {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi ⊓ psi) := by
---   unfold Min.min instMin
---   simp only
---   rw [<- IsDelta0.not]
---   rw [<- IsDelta0.imp.mpr]
---   rw [<- IsDelta0.not]
+@[delta0_simps]
+theorem bot {a n} : (⊥ : L.BoundedFormula a n).IsDelta0  := by
+  constructor
+  exact isQF_bot
+
+@[delta0_simps]
+theorem equal {a n} (t1 t2 : L.Term (a ⊕ Fin n))
+  : (t1.bdEqual t2).IsDelta0 :=
+by
+  constructor
+  constructor
+  apply IsAtomic.equal
+
+@[delta0_simps]
+theorem neq {a n} (t1 t2 : L.Term (a ⊕ Fin n))
+  : (t1 ≠' t2).IsDelta0 :=
+by
+  constructor
+  apply equal
+  apply bot
+
+@[delta0_simps]
+theorem min {a} {n} (phi psi : L.BoundedFormula a n) :
+  IsDelta0 (phi ⊓ psi) <-> (IsDelta0 phi ∧ IsDelta0 psi) :=
+by
+  constructor
+  · intro h
+    have h' : IsDelta0 ((phi ⟹ ∼psi) ⟹ ⊥) := by
+      simpa only using h
+    sorry
+    -- cases h with
+    -- | imp h' _ =>
+    --   cases h' with
+    --   | imp hphi hpsi =>
+    --     cases hpsi with
+    --     | imp hpsi' =>
+    --       exact ⟨hphi, hpsi'⟩
+  · rintro ⟨hφ, hψ⟩
+    constructor; constructor; assumption; constructor; assumption; exact bot; exact bot
 
 -- theorem max {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi ⊔ psi) := by
 --   unfold Max.max instMax

@@ -67,7 +67,7 @@ instance : Language.IsOrdered peano where
 @[inherit_doc] scoped[FirstOrder.Language] infixl:89 " <' " => Term.lt
 
 /-- The not-equal relation of two terms as a bounded formula -/
-def _root_.FirstOrder.Term.neq {a : Type u} {n} (t1 t2 : peano.Term (a ⊕ (Fin n))) : peano.BoundedFormula a n :=
+def _root_.FirstOrder.Term.neq {a : Type u} {n} {L : Language} (t1 t2 : L.Term (a ⊕ (Fin n))) : L.BoundedFormula a n :=
   ∼(t1 =' t2)
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ≠' " => Term.neq
 

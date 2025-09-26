@@ -241,7 +241,7 @@ by
     rw [hInd_x]
 
 -- O6. x + z = y + z → x = y (Cancellation law for +)
-theorem add_cancel_right
+theorem add_cancel_right.mp
   : ∀ x y z : M, x + z = y + z → x = y :=
 by
   have ind := open_induction (self := iopen) (display_z_xyz $ ((x + z) =' (y + z) ⟹ (x =' y)))
@@ -264,6 +264,25 @@ by
     apply B2
     apply hInd_x
     exact h
+
+theorem add_cancel_right
+  : ∀ x y z : M, x + z = y + z <-> x = y :=
+by
+  intro x y z
+  constructor
+  · exact add_cancel_right.mp M x y z
+  · intro h
+    rw [h]
+
+theorem add_cancel_left
+  : ∀ x y z : M, z + x = z + y <-> x = y :=
+by
+  intro x y z
+  constructor
+  · conv => rw [add_comm]; lhs; rhs; rw [add_comm]
+    apply add_cancel_right.mp
+  · intro h
+    rw [h]
 
 -- O7. 0 ≤ x
 theorem zero_le
@@ -316,6 +335,14 @@ by
     exact hq
 
 
+theorem add_mul
+  : ∀ x y z : M, (x + y) * z = x * z + y * z :=
+by
+  intro x y z
+  rw [mul_comm]
+  rw [mul_add]
+  rw [mul_comm]
+  conv => lhs; rhs; rw [mul_comm]
 
 
 
@@ -325,6 +352,14 @@ by
 theorem isAddRightRegular_one : IsAddRightRegular (1 : M) := by
   unfold IsAddRightRegular Function.Injective
   exact B2
+
+instance : IsRightCancelAdd M where
+  add_right_cancel := by
+    intro a
+    unfold IsAddRightRegular Function.Injective
+    intro b c
+    simp only
+    apply add_cancel_right.mp
 
 instance : MulZeroClass M where
   zero_mul := zero_mul M

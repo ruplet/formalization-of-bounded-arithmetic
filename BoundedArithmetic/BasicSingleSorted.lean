@@ -1,9 +1,7 @@
-import Mathlib.Algebra.Regular.Defs
 import Mathlib.ModelTheory.Semantics
 import BoundedArithmetic.LanguagePeano
 
-
-open FirstOrder Language
+open FirstOrder FirstOrder.Language
 
 -- Section 3.1 Peano Arithmetic; draft page 34 (45 of pdf)
 -- semi-bundled design! inspired by mathlib Ring
@@ -27,6 +25,12 @@ instance (M : Type*) [BASICModel M] : Add M where
 
 instance (M : Type*) [BASICModel M] : Mul M where
   mul x y := x * y
+
+instance (M : Type*) [BASICModel M] : LE M where
+  le x y := x <= y
+
+instance (M : Type*) [BASICModel M] : LT M where
+  lt x y := x <= y ∧ x ≠ y
 
 namespace BASICModel
 universe u
