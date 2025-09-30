@@ -59,10 +59,10 @@ by
     rw [hInd]
 
 -- lemma for O2; "induction on y, first establishing the special cases y = 0 and y = 1..."
-lemma add_zero_comm
-  : ∀ x : M, x + 0 = 0 + x
 -- proof: induction on x
-:= by
+lemma add_zero_comm
+  : ∀ x : M, x + 0 = 0 + x :=
+by
   have ind :=
     open_induction (self := iopen)
       (display_x_x $ ((x + 0) =' (0 + x)))
@@ -78,6 +78,14 @@ lemma add_zero_comm
     rw [B3]
     rw [B3]
 
+-- this is necessary to prove axiom `C` from BasicExt
+lemma zero_add
+  : ∀ x : M, 0 + x = x :=
+by
+    intro a
+    rw [<- add_zero_comm]
+    exact B3 a
+
 -- lemma for O2; "induction on y, first establishing the special cases y = 0 and y = 1..."
 theorem add_one_comm
   : ∀ x : M, x + 1 = 1 + x :=
@@ -89,7 +97,7 @@ by
   intros
   apply ind ?base ?step
   clear ind
-  · rw [C, B3]
+  · rw [zero_add, B3]
   · intro a ha
     rw [<- add_assoc]
     rw [ha]
@@ -142,7 +150,7 @@ theorem mul_one
   : ∀ x : M, x * 1 = x :=
 by
   intro x
-  rw [<- C]
+  rw [<- zero_add M 1]
   rw [B6]
   rw [B5]
   rw [add_comm]
@@ -372,10 +380,7 @@ instance : CommMonoid M where
 
 instance : AddCommMonoid M where
   add_assoc := add_assoc M
-  zero_add := by
-    intro a
-    rw [<- add_zero_comm]
-    exact B3 a
+  zero_add := zero_add M
   add_zero := by
     exact B3
   nsmul := nsmulRec

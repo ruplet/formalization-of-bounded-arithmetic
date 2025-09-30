@@ -332,10 +332,10 @@ by
     rw [add_assoc] at hdiff
     conv at hdiff => lhs; rhs; rw [add_comm]
     rw [<- add_assoc] at hdiff
-    conv at hdiff => rhs; rw [<- C]
+    conv at hdiff => rhs; rw [<- zero_add M 1]
     have hdiff := add_cancel_right.mp M (pred + diff) 0 1 hdiff
     have pred_zero := (zero_if_sum_zero M pred diff hdiff).left
-    rw [pred_zero, C] at hp2
+    rw [pred_zero, zero_add] at hp2
     exfalso
     apply h_x_neq
     exact hp2

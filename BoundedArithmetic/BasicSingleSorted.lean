@@ -15,7 +15,16 @@ class BASICModel (num : Type*) extends peano.Structure num where
   B6 : ∀ x y : num, x * (y + 1) = x * y + x
   B7 : ∀ x y : num, x <= y -> y <= x -> x = y
   B8 : ∀ x y : num, x <= x + y
-  C  : (0 : num) + 1 = 1
+
+class BASICModelExt (num : Type*) extends BASICModel num where
+-- skip this axiom by default
+-- we will use induction anyway for IDelta0, and it is problematic
+-- when defining 2-BASIC axioms and V^i later on
+
+-- it is interesting because BASICModelExt alone implies all
+-- true quantifier-free sentences over `peano` language!
+-- (source: Logical Foundations, release, p. 40 (p. 58 of PDF))
+C  : (0 : num) + 1 = 1
 
 instance (M : Type*) [BASICModel M] : Zero M where
   zero := 0
