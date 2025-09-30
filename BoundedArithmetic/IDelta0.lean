@@ -165,7 +165,6 @@ by
       exists 0
       rw [B3]
       apply B7
-      constructor
       · exact h_xy
       · rw [<- heq]
         apply B8
@@ -481,7 +480,8 @@ instance : PartialOrder M where
   le_antisymm := by
     intro a b hab hba
     apply B7
-    exact ⟨hab, hba⟩
+    exact hab
+    exact hba
   lt_iff_le_not_ge := by
     intro a b
     constructor
@@ -492,7 +492,8 @@ instance : PartialOrder M where
       · by_contra hba
         apply hne
         apply B7
-        exact ⟨hle, hba⟩
+        exact hle
+        exact hba
     · intro h
       rcases h with ⟨hle, hnba⟩
       constructor

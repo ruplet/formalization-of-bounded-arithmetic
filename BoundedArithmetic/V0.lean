@@ -2,207 +2,221 @@
 -- in single-sorted logic modeled by Mathlib.ModelTheory
 -- We use the idea described in section 4.5 Single-sorted logic interpretation
 -- (Draft p.82 = p.93 of pdf) (draft: https://www.karlin.mff.cuni.cz/~krajicek/cook-nguyen.pdf)
-
--- NOTE: this file is older and while working on it, I wasn't sure how to properly work with
--- free variables in formulas for induction / comprehension:
--- - how to display one particular variable to be bound by the induction scheme
--- - how to bypass 'bounded' (in mathlib's vocab) variables not being quantifiable over in the ModelTheory library
--- I have better solutions for these problems in the IDelta0.lean file,
--- these files for now contain the old, bad design
--- in particular, the way I deal with de Bruijn indices in this file is super brittle
+-- import Init.Notation
+import Lean
 
 import Mathlib.ModelTheory.Basic
 import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Complexity
 import Mathlib.Tactic.Linarith
 
-namespace FirstOrder
+import BoundedArithmetic.LanguageZambella
+import BoundedArithmetic.Complexity
+import BoundedArithmetic.AxiomSchemes
+import BoundedArithmetic.IDelta0
 
--- to represent the language, we use this idea from July 22 2025:
--- https://github.com/leanprover-community/mathlib4/blob/909b3bebf314f6bcdb73d82d2a14f3f38a5bb5da/Mathlib/ModelTheory/Arithmetic/Presburger/Basic.lean#L30-L35
+open FirstOrder.Language zambella
 
--- Definition 4.4, Draft page 70 (page 81 of pdf)
--- + note about adding the axiom "E" and empty-string constant in a section below
-inductive V0Func : Nat -> Type
-| zero : V0Func 0
-| one : V0Func 0
-| empty : V0Func 0
-| len : V0Func 1
-| add : V0Func 2
-| mul : V0Func 2
-deriving DecidableEq
+-- open Lean
+-- open Lean.Parser.Term
 
-inductive V0Rel : Nat -> Type
--- | eqsort, eqstr -- we will use built-in equality syntax from ModelTheory lib
-| isnum : V0Rel 1
-| isstr : V0Rel 1
-| leq : V0Rel 2
-| mem : V0Rel 2
-deriving DecidableEq
+universe u
+variable (sort : Type u)
 
-def Lang : FirstOrder.Language :=
-{ Functions := V0Func,
-  Relations := V0Rel
-}
+open zambella.HasTypes_is
 
--- Cook, Nguyen: introduction, Draft page 5 of pdf:
--- Most of the theories presented in this book, including those in (2), have the
--- same “second-order” underlying language L2A, introduced by Zambella. The
--- language L2 A is actually a language for the two-sorted first-order predicate cal-
--- culus, where one sort is for sortbers in N and the second sort is for finite sets of
--- sortbers. Here we regard an object of the second sort as a finite string over the
--- alphabet {0, 1} (the i-th bit in the string is 1 iff i is in the set). The strings are
--- the objects of interest for the complexity classes, and serve as the main inputs
--- for the machines or circuits that determine the class. The sortbers serve a use-
--- ful purpose as indices for the strings when describing properties of the strings.
--- When they are used as machine or circuit inputs, they are presented in unary
--- notation.
-namespace Language.zambella
+open  HasEmptySet HasLen
 
-@[simp] def isOpen {a} {n} [DecidableEq a] (formula : Lang.BoundedFormula a n) := FirstOrder.Language.BoundedFormula.IsQF formula
+syntax "∃i " Lean.binderIdent+ ", " term : term
+syntax "∃s " Lean.binderIdent+ ", " term : term
+syntax "∀i " Lean.binderIdent+ ", " term : term
+syntax "∀s " Lean.binderIdent+ ", " term : term
 
-@[simp] def contains_var_zero {a} [DecidableEq a] {n} (t : Lang.Term (a ⊕ Fin n)) : Bool :=
-  if h_eq : n = 0 then
-    false
-  else
-    (Sum.inr $ @Fin.mk n 0 (Nat.pos_of_ne_zero h_eq)) ∈ t.varFinset
+#check ∀ x y : Nat, x < y
 
-@[simp] def relationLeq : Lang.Relations 2 := V0Rel.leq
-@[simp] def relationMem : Lang.Relations 2 := V0Rel.mem
-@[simp] def relationIsnum : Lang.Relations 1 := V0Rel.isnum
+/-- base cases (single variable) -/
+macro_rules
+  | `(∀i $x:ident, $p) =>
+    `(∀ $x:ident : sort, int $x -> $p)
+  | `(∃i $x:ident, $p) =>
+    `(∃ $x:ident : sort, int $x ∧ $p)
+  | `(∀s $x:ident, $p) =>
+    `(∀ $x:ident : sort, str $x -> $p)
+  | `(∃s $x:ident, $p) =>
+    `(∃ $x:ident : sort, str $x ∧ $p)
 
--- --- Sentence Construction Helpers ---
--- For sentences, α is Empty, and n is 0.
+/-- recursive cases (two or more variables): peel the head and recurse on the tail -/
+-- THIS DOESNT WORK IDK
+-- macro_rules
+--   | `(∀i $x:ident $xs:ident, $p) =>
+--     `(∀ $x:ident : sort, int $x -> (∀i $xs*, $p))
+--   | `(∃i $x:ident $xs:ident+, $p) =>
+--     `(∃ $x:ident : sort, int $x ∧ (∃i $xs*, $p))
+--   | `(∀s $x:ident $xs:ident+, $p) =>
+--     `(∀ $x:ident : sort, str $x -> (∀s $xs*, $p))
+--   | `(∃s $x:ident $xs:ident+, $p) =>
+--     `(∃ $x:ident : sort, str $x ∧ (∃s $xs*, $p))
 
--- A variable term (for current context `n`).
--- For sentences, `n = 0`, so `Fin 0` is `Empty`.
--- If we're inside `all {n} f`, then `f` has context `n+1`, so `Fin (n+1)`.
-@[simp] def var_term {k : ℕ} (idx : Fin k) : Term Lang (Empty ⊕ (Fin k)) := Term.var (Sum.inr idx)
 
--- A constant term. Now `k` is a free variable, so Lean can infer it.
--- This term type is `Term Lang (α ⊕ (Fin k))`
-@[simp] def const_term {α} {k : ℕ} (c : Lang.Functions 0) : Term Lang (α ⊕ (Fin k)) := Term.func c ![]
-
--- A term from a binary function (e.g., add, mul). `k` is also generic here.
-@[simp] def binary_func_term {α} {k : ℕ} (f : Lang.Functions 2) (t1 t2 : Term Lang (α ⊕ (Fin k))) : Term Lang (α ⊕ (Fin k)) := Term.func f ![t1, t2]
-
-@[simp] def not_form {a} {k : ℕ} (f : BoundedFormula Lang a k) : BoundedFormula Lang a k :=
-  BoundedFormula.not f
-
-@[simp] def isnum_form {k : ℕ} (t1 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.rel relationIsnum ![t1]
-
--- Atomic formulas
-@[simp] def eq_form {k : ℕ} (t1 t2 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.equal t1 t2
-
-@[simp] def leq_form {k : ℕ} (t1 t2 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.rel relationLeq ![t1, t2]
-
-@[simp] def mem_form {k : ℕ} (t1 t2 : Term Lang (Empty ⊕ (Fin k))) : BoundedFormula Lang Empty k :=
-  BoundedFormula.rel relationMem ![t1, t2]
-
-@[simp] def falsum_form {a} {k : ℕ} : Lang.BoundedFormula a k := BoundedFormula.falsum
-
-@[simp] def and_form {a} {k : ℕ} (f1 f2 : BoundedFormula Lang a k) : BoundedFormula Lang a k :=
-  max f1 f2
-
-@[simp] def imp_form {a} {k : ℕ} (f1 f2 : BoundedFormula Lang a k) : BoundedFormula Lang a k :=
-  BoundedFormula.imp f1 f2
-
-@[simp] def ex_form {a} {k : ℕ} (f : BoundedFormula Lang a (k + 1)) : BoundedFormula Lang a k :=
-  BoundedFormula.ex f
-
-@[simp] def all_form {a} {k : ℕ} (f : BoundedFormula Lang a (k + 1)) : BoundedFormula Lang a k :=
-  BoundedFormula.all f
-
--- Section 3.1 Peano Arithmetic (Draft, page 34 (45 of pdf))
-
-structure TwoSortedBASICModel where
-  sort    : Type
-
-  -- Functions and predicates for sort
-  zero   : sort
-  one    : sort
-  empty  : sort
-  add    : sort → sort → sort
-  mul    : sort → sort → sort
-  len    : sort -> sort
-  isnum  : sort -> Prop
-  isstr  : sort -> Prop
-  leq    : sort → sort → Prop
-  mem    : sort -> sort -> Prop
-  -- we want to be able to reason by contradiction
-  [leq_dec : DecidableRel leq]
-  [mem_dec : DecidableRel mem]
-
-  -- typing axioms; 4.5 Single-sorted logic interpretation (Draft p.83 / p.94 of pdf)
-  TypeDec   : ∀ x, isnum x ∨ isstr x
-  TypeZero  : isnum zero
-  TypeOne   : isnum one
-  TypeEmpty : isstr empty
-  TypeAdd   : forall x y, isnum x -> isnum y -> isnum (add x y)
-  TypeMul   : forall x y, isnum x -> isnum y -> isnum (mul x y)
-  TypeLen   : forall x, isstr x -> isnum (len x)
-  TypeLeq   : forall x y, leq x y -> (isnum x ∧ isnum y)
-  TypeMem   : forall x y, mem x y -> (isnum x ∧ isstr y)
+-- typing axioms; 4.5 Single-sorted logic interpretation (Draft p.83 / p.94 of pdf)
+class BASIC2Model extends zambella.Structure sort, HasTypes_is sort where
+  typeZero  : int (0 : sort)
+  typeOne   : int (1 : sort)
+  typeEmpty : str (empty : sort)
+  typeAdd   : ∀i x, ∀i y, int (x + y)
+  typeMul   : ∀i x, ∀i y, int (x * y)
+  typeLen   : ∀s x, int (len (β := sort) x)
 
   -- axiom for empty string; 4.4.1 Two-Sorted Free Variable Normal Form
-  E : len empty = zero
+  E : len (empty : sort) = (0 : sort)
+  B1 : ∀i x,       x + 1 ≠ 0
+  B2 : ∀i x, ∀i y, x + 1 = y + 1 -> x = y
+  B3 : ∀i x,       x + 0 = x
+  B4 : ∀i x, ∀i y, x + (y + 1) = (x + y) + 1
+  B5 : ∀i x,       x * 0 = 0
+  B6 : ∀i x, ∀i y, x * (y + 1) = (x * y) + x
+  B7 : ∀i x, ∀i y, x <= y -> y <= x -> x = y
+  B8 : ∀i x, ∀i y, x <= x + y
+  B9 : ∀i x,       0 <= x
+  B10: ∀i x, ∀i y, x <= y ∨ y <= x
+  B11: ∀i x, ∀i y, x <= y <-> (x <= (y + 1) ∧ x ≠ (y + 1))
+  B12: ∀i x,       x ≠ 0 -> (∃i y, (y <= x ∧ (y + 1) = x))
+  L1 : ∀s X, ∀i y, y ∈ X -> (y <= (len X) ∧ y ≠ (len X))
+  L2 : ∀s X, ∀i y, (y + 1) = len X -> y ∈ X
 
-  -- B1. x + 1 ≠ 0
-  B1 : ∀ (x : sort), isnum x -> add x one ≠ zero
-  -- B2. x + 1 = y + 1 ⊃ x = y
-  B2 : ∀ (x y : sort), isnum x -> isnum y -> add x one = add y one → x = y
-  -- B3. x + 0 = x
-  B3 : ∀ (x : sort), isnum x -> add x zero = x
-  -- B4. x + (y + 1) = (x + y) + 1
-  B4 : ∀ (x y : sort), isnum x -> isnum y -> add x (add y one) = add (add x y) one
-  -- B5. x · 0 = 0
-  B5 : ∀ (x : sort), isnum x -> mul x zero = zero
-  -- B6. x · (y + 1) = (x · y) + x
-  B6 : ∀ (x y : sort), isnum x -> isnum y -> mul x (add y one) = add (mul x y) x
-  -- B7. (x ≤ y ∧ y ≤ x) ⊃ x = y
-  B7 : ∀ (x y : sort), isnum x -> isnum y -> leq x y → leq y x → x = y
-  -- B8. x ≤ x + y
-  B8 : ∀ (x y : sort), isnum x -> isnum y -> leq x (add x y)
-  B9 : ∀ (x : sort), isnum x -> leq zero x
-  B10 : forall x y : sort, isnum x -> isnum y -> leq x y ∨ leq y x
-  B11 : forall x y : sort, isnum x -> isnum y -> leq x y ↔ (leq x (add y one) ∧ x ≠ (add y one))
-  B12 : forall x : sort, isnum x -> x ≠ zero -> (∃ y : sort, (leq y x ∧ (add y one) = x))
-  L1 : forall X y : sort, isstr X -> isnum y -> mem y X -> (leq y (len X) ∧ y ≠ (len X))
-  L2 : forall X y : sort, isstr X -> isnum y -> (add y one) = len X -> mem y X
+  SE : ∀s X, ∀s Y,
+    len X = len Y (β := sort)
+    -> (∀i y, ((y < len X) -> y ∈ X <-> y ∈ Y))
+    -> X = Y
 
-  SE : forall X Y : sort,
-    isstr X ->
-    isstr Y ->
-    len X = len Y ->
-    (forall i : sort,
-      ((leq i (len X) ∧ i ≠ (len X)) ->
-        mem i X ↔ mem i Y
-      )
-    ) ->
-    X = Y
 
-instance TwoSortedBASICModel_Structure (M : TwoSortedBASICModel) : Lang.Structure M.sort :=
-{
-  -- Carrier := fun _ => M.sort,
+
+variable (M : Type u) [h : BASIC2Model M]
+
+abbrev num : Type u := {x : M // int x}
+
+-- define operations on `num` by pullback from M!
+instance : Zero (num M):=
+  ⟨⟨h.funMap ZambellaFunc.zero ![], h.typeZero⟩⟩
+
+instance : One (num M) :=
+  ⟨⟨h.funMap ZambellaFunc.one ![], h.typeOne⟩⟩
+
+instance : Add (num M) :=
+  ⟨fun x y =>
+    ⟨ h.funMap ZambellaFunc.add ![x.1, y.1]
+    , by
+        simpa only using h.typeAdd x.1 x.2 y.1 y.2
+    ⟩⟩
+
+instance : Mul (num M) :=
+  ⟨fun x y =>
+    ⟨ h.funMap ZambellaFunc.mul ![x.1, y.1]
+    , by
+        simpa only using h.typeMul x.1 x.2 y.1 y.2
+    ⟩⟩
+
+instance : LE (num M) :=
+  ⟨fun x y => h.RelMap ZambellaRel.leq ![x.1, y.1]⟩
+
+instance : LT M where
+  lt x y := x <= y ∧ x ≠ y
+
+instance : peano.Structure (num M) where
   funMap := fun {arity} f =>
     match arity, f with
-    | 0, V0Func.zero => fun _ => M.zero
-    | 0, V0Func.one => fun _ => M.one
-    | 0, V0Func.empty => fun _ => M.empty
-    | 1, V0Func.len => fun args => M.len (args 0)
-    | 2, V0Func.add => fun args => M.add (args 0) (args 1)
-    | 2, V0Func.mul => fun args => M.mul (args 0) (args 1)
+    | 0, PeanoFunc.zero => fun _ => 0
+    | 0, PeanoFunc.one => fun _ => 1
+    | 2, PeanoFunc.add => fun args => (args 0) + (args 1)
+    | 2, PeanoFunc.mul => fun args => (args 0) * (args 1)
 
   RelMap := fun {arity} r =>
     match arity, r with
-    | 1, V0Rel.isnum => fun args => M.isnum (args 0)
-    | 1, V0Rel.isstr=> fun args => M.isnum (args 0)
-    | 2, V0Rel.leq => fun args => M.leq (args 0) (args 1)
-    | 2, V0Rel.mem => fun args => M.mem (args 0) (args 1)
-}
+    | 2, PeanoRel.leq => fun args => (args 0) <= (args 1)
+
+
+open BASIC2Model
+
+
+-- -- we need to prove add_assoc -> zero_add_comm -> zero_add
+-- -- in order to prove the C axiom for BASIC
+-- theorem add_assoc
+--   : ∀ x y z : M, (x + y) + z = x + (y + z) :=
+-- by
+--   -- the below block is a set of repetitive conversion we need to do;
+--   -- this should be automatized by a single tactic
+--   have ind := open_induction (self := iopen)
+--     (display_z_xyz  $ ((x + y) + z) =' (x + (y + z)))
+--   simp only [delta0_simps] at ind
+--   specialize ind trivial
+--   -- now, we cannot simply do `apply ind` without `intros`,
+--   -- because our induction formula has a different order of quantifiers;
+--   -- Lean can't unify ∀x y, phi(x, y) with ∀y x, phi(x, y)
+--   -- see also: refer to Mathlib.Logic.Basic.forall_swap
+--   intros
+--   apply ind ?base ?step
+--   clear ind
+--   · intro x y
+--     rw [B3 (x + y)]
+--     rw [B3 y]
+--   · intro z hInd x y
+--     rw [B4]
+--     rw [B4]
+--     rw [B4]
+--     rw [<- (B2 (x + y + z) (x + (y + z)))]
+--     rw [hInd]
+
+
+instance : IDelta0Model { x : M // int x } where
+  B1 := by
+    intro x h
+    rw [Subtype.ext_iff_val] at h
+    apply B1 x.val
+    exact x.prop
+    exact h
+  B2 := by
+    intro x y h; ext; apply B2; exact x.prop; exact y.prop;
+    rw [Subtype.ext_iff_val] at h
+    exact h
+  B3 := by
+    intro x; ext; apply B3; exact x.prop
+  B4 := by
+    intro x y; ext; apply B4; exact x.prop; exact y.prop
+  B5 := by
+    intro x; ext; apply B5; exact x.prop
+  B6 := by
+    intro x y
+    ext
+    apply B6
+    exact x.prop
+    exact y.prop
+  B7 := by
+    intro x y h_xy h_yx
+    ext
+    apply B7
+    exact x.prop
+    exact y.prop
+    exact h_xy
+    exact h_yx
+  B8 := by
+    intro x y
+    apply B8
+    exact x.prop
+    exact y.prop
+  C := by
+    -- here, use x + 0 = x after proving commutativity of 0add
+    sorry
+  open_induction := by
+    sorry
+  delta0_induction := by
+    sorry
+
+#exit
+-- p. 87 Draft (98 of pdf)
+class V0Model extends BASIC2Model M where
+  sigma0B_comp {a} [IsEnum a]
+    (phi : zambella.Formula (Vars2yz ⊕ a)) :
+    phi.IsSigma0B -> (mkComprehensionSentence phi).Realize M
 
 @[simp] def realize_at : forall {n}, (M : TwoSortedBASICModel) -> Lang.BoundedFormula Empty (n + 1) -> M.sort -> Prop
 | 0, M, phi, term => @phi.Realize Lang M.sort (TwoSortedBASICModel_Structure M) _ _ (Empty.elim) ![term]
@@ -213,10 +227,10 @@ instance TwoSortedBASICModel_Structure (M : TwoSortedBASICModel) : Lang.Structur
 inductive IsSigma0B : {n : Nat} -> Lang.BoundedFormula Empty n -> Prop
 | of_isQF {phi} (h : BoundedFormula.IsQF phi) : IsSigma0B phi
 -- bounded number quantifiers are allowed
-| bdNumEx  {n} {phi : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi):  IsSigma0B $ ex_form $ and_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
-| bdNumAll {n} {phi : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+| bdNumEx  {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi):  IsSigma0B $ ex_form $ and_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+| bdNumAll {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
 -- enable optional type implication
-| bdNumAll' {n} {phi : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (isnum_form (var_term (Fin.ofNat (n + 1) n))) $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+| bdNumAll' {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (i_form (var_term (Fin.ofNat (n + 1) n))) $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
 
 def TwoSortedBASICModel.lt (M : TwoSortedBASICModel) (x y : M.sort) : Prop :=
   M.leq x y ∧ x ≠ y
@@ -232,10 +246,10 @@ structure V0Model extends TwoSortedBASICModel where
     forall n_free_vars : Fin (n - 2) -> sort,
     (
     forall y : sort,
-      isnum y ->
-      (∃ X : sort, isstr X ∧ leq (len X) y ∧
+      int y ->
+      (∃ X : sort, isStr X ∧ leq (len X) y ∧
         (∀ z : sort,
-          isnum z ->
+          int z ->
           ((leq z y ∧ z ≠ y) ->
             (
               mem z X ↔
@@ -267,17 +281,17 @@ instance V0Model_Structure (M : V0Model) : Lang.Structure M.sort :=
 {
   funMap := fun {arity} f =>
     match arity, f with
-    | 0, V0Func.zero => fun _ => M.zero
-    | 0, V0Func.one => fun _ => M.one
+    | 0, V0Func.0 => fun _ => M.0
+    | 0, V0Func.1 => fun _ => M.1
     | 0, V0Func.empty => fun _ => M.empty
     | 1, V0Func.len => fun args => M.len (args 0)
-    | 2, V0Func.add => fun args => M.add (args 0) (args 1)
+    | 2, V0Func.=> + fun args => M.( +args 0) (args 1)
     | 2, V0Func.mul => fun args => M.mul (args 0) (args 1)
 
   RelMap := fun {arity} r =>
     match arity, r with
-    | 1, V0Rel.isnum => fun args => M.isnum (args 0)
-    | 1, V0Rel.isstr => fun args => M.isstr (args 0)
+    | 1, V0Rel.int => fun args => M.int (args 0)
+    | 1, V0Rel.isStr => fun args => M.isStr (args 0)
     | 2, V0Rel.leq => fun args => M.leq (args 0) (args 1)
     | 2, V0Rel.mem => fun args => M.mem (args 0) (args 1)
 }
@@ -294,15 +308,15 @@ def v0_xmin_comp1_form :=
   let y' := var_term (4 : Fin 5)
   let z := var_term (1 : Fin 5)
   let X := var_term (0 : Fin 5)
-  all_form $ imp_form (isnum_form y') $ imp_form (leq_form y' z) (not_form $ mem_form y' X)
+  all_form $ imp_form (i_form y') $ imp_form (leq_form y' z) (not_form $ mem_form y' X)
 
 def v0_xmin_comp1_form_shallow (M : V0Model) :=
-  ∀ X, M.isstr X -> (
+  ∀ X, M.isStr X -> (
     ∀y,
       ∃ Y,
         (M.leq (M.len Y) y) ∧
         (∀ z,
-          M.isnum z ->
+          M.int z ->
           (M.lt z (M.len Y)) ->
           (∀ y', (M.leq y' z) -> ¬M.mem y' X
           )
@@ -311,13 +325,13 @@ def v0_xmin_comp1_form_shallow (M : V0Model) :=
 
 def v0_xmin_form_shallow (M : V0Model) : Prop :=
   forall X,
-    M.isstr X ->
-    M.lt M.zero (M.len X) ->
+    M.isStr X ->
+    M.lt M.0 (M.len X) ->
     exists x,
       (
         M.lt x (M.len X) ∧
         M.mem x X ∧
-        (forall y, M.isnum y -> M.lt y x -> ¬ M.mem y X)
+        (forall y, M.int y -> M.lt y x -> ¬ M.mem y X)
       )
 
 theorem v0_xmin (M : V0Model) : v0_xmin_form_shallow M := by
@@ -357,53 +371,53 @@ theorem v0_xmin (M : V0Model) : v0_xmin_form_shallow M := by
   -- (i) X(|Y|)
   -- (ii) ∀ y < |Y|, ¬X(y)
   -- Details are as follows.
-  have h_i_ii : M.mem (M.len Y) X ∧ (∀ t, M.isnum t -> M.lt t (M.len Y) -> ¬ M.mem t X) := by
+  have h_i_iint : M.mem (M.len Y) X ∧ (∀ t, M.int t -> M.lt t (M.len Y) -> ¬ M.mem t X) := by
   -- First, suppose that Y is empty.
     if h_Y_empty : Y = M.empty then {
       refine ⟨?_, ?_⟩
       rw [h_Y_empty]
       rw [M.E]
-      by_contra h_zero_not_mem_X
+      by_contra h_0_not_mem_X
       -- prove (i) X(|Y|)
       · -- from definition of Y, having the assumption (contradictory) that
-        -- zero is not in X, try to obtain element of Y. since Y empty, contr.
-        specialize h_Y_content M.zero M.TypeZero ?_ ?_
+        -- 0 is not in X, try to obtain element of Y. since Y empty, contr.
+        specialize h_Y_content M.0 M.TypeZero ?_ ?_
         -- prove 0 <= |X|
         · unfold TwoSortedBASICModel.lt at h_X_len_pos
-          obtain ⟨h_X_len_leq_zero, _ ⟩ := h_X_len_pos
-          apply (h_X_len_leq_zero)
+          obtain ⟨h_X_len_leq_0, _ ⟩ := h_X_len_pos
+          apply (h_X_len_leq_0)
         -- prove 0 ≠ |X|
         · unfold TwoSortedBASICModel.lt at h_X_len_pos
-          obtain ⟨_, h_X_len_neq_zero⟩ := h_X_len_pos
-          apply (h_X_len_neq_zero)
+          obtain ⟨_, h_X_len_neq_0⟩ := h_X_len_pos
+          apply (h_X_len_neq_0)
         -- now in h_Y_content we should have something of the form:
-        -- forall a, isnum a -> leq a 0 -> ¬ mem a X
+        -- forall a, int a -> leq a 0 -> ¬ mem a X
         have Yc' := (Iff.mpr h_Y_content)
-        have h_zero_not_mem_Y : ¬ M.mem M.zero Y := by
-          intro h_zero_mem_Y
-          have ⟨_, h_zero_neq_len_Y⟩ := M.L1 Y M.zero h_Y_type M.TypeZero h_zero_mem_Y
-          apply h_zero_neq_len_Y
+        have h_0_not_mem_Y : ¬ M.mem M.0 Y := by
+          intro h_0_mem_Y
+          have ⟨_, h_0_neq_len_Y⟩ := M.L1 Y M.0 h_Y_type M.TypeZero h_0_mem_Y
+          apply h_0_neq_len_Y
           rw [h_Y_empty]
           rw [M.E]
-        apply h_zero_not_mem_Y
+        apply h_0_not_mem_Y
         apply Yc'
-        intro a h_a_type h_a_leq_zero h_a_mem_X
-        apply h_zero_not_mem_X
+        intro a h_a_type h_a_leq_0 h_a_mem_X
+        apply h_0_not_mem_X
         -- now, prove that a = 0
-        have h_a_eq_zero : a = M.zero := by
-          apply M.B7 a M.zero h_a_type M.TypeZero
-          · exact h_a_leq_zero
+        have h_a_eq_0 : a = M.0 := by
+          apply M.B7 a M.0 h_a_type M.TypeZero
+          · exact h_a_leq_0
           · apply M.B9 a h_a_type
-        rw [h_a_eq_zero] at h_a_mem_X
+        rw [h_a_eq_0] at h_a_mem_X
         exact h_a_mem_X
       -- prove (ii) ∀ y < |Y|, ¬X(y)
       · intro t h_t_type h_t_lt_len_Y h_t_mem_X
         rw [h_Y_empty] at h_t_lt_len_Y
         rw [M.E] at h_t_lt_len_Y
-        obtain ⟨h_t_leq_zero, h_t_neq_zero⟩ := h_t_lt_len_Y
-        apply h_t_neq_zero
-        apply M.B7 t M.zero h_t_type M.TypeZero
-        apply h_t_leq_zero
+        obtain ⟨h_t_leq_0, h_t_neq_0⟩ := h_t_lt_len_Y
+        apply h_t_neq_0
+        apply M.B7 t M.0 h_t_type M.TypeZero
+        apply h_t_leq_0
         apply M.B9 t h_t_type
     } else {
       -- Now suppose that Y is not empty, i.e. Y(y) holds for some y.

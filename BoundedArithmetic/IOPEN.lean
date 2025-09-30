@@ -299,7 +299,6 @@ theorem le_zero_eq
 by
   intro x h
   apply B7
-  constructor
   · exact h
   · apply zero_le
 

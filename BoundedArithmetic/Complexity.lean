@@ -3,6 +3,7 @@ import Mathlib.ModelTheory.Complexity
 import BoundedArithmetic.DisplayedVariables
 import BoundedArithmetic.Order
 import BoundedArithmetic.LanguagePeano
+import BoundedArithmetic.LanguageZambella
 
 open FirstOrder Language BoundedFormula Formula
 
@@ -381,9 +382,6 @@ end IsDelta0
 
 
 
--- namespace Sigma0B
-
-
 -- inductive IsDelta0 : {n : Nat} -> L.BoundedFormula a n -> Prop
 -- | imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
 -- | bdEx
@@ -400,15 +398,25 @@ end IsDelta0
 -- | of_isQF {phi} (h : IsQF phi) : IsDelta0 phi
 
 
--- inductive IsSigma0B : {n : Nat} -> Lang.BoundedFormula Empty n -> Prop
--- | of_isQF {phi} (h : BoundedFormula.IsQF phi) : IsSigma0B phi
--- -- bounded number quantifiers are allowed
--- | bdNumEx  {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi):  IsSigma0B $ ex_form $ and_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
--- | bdNumAll {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
--- -- enable optional type implication
--- | bdNumAll' {n} {phint : Lang.BoundedFormula Empty (n + 1)} (t : Lang.Term (Empty ⊕ Fin (n + 1))) (h : IsSigma0B phi) : IsSigma0B $ all_form $ imp_form (i_form (var_term (Fin.ofNat (n + 1) n))) $ imp_form (leq_form (var_term (Fin.ofNat (n + 1) n)) (t)) (phi)
+-- only bounded number quantifiers allowed. and free string vars.
+-- p. 82 of pdf of Logical Foundatoin release
+inductive IsSigma0B : {n : Nat} -> zambella.BoundedFormula a n -> Prop
+| imp {phi1 phi2} (h1 : IsSigma0B phi1) (h2 : IsSigma0B phi2)
+  : IsSigma0B (phi1.imp phi2)
+| bdEx
+  {disp} [hd : HasDisplayed disp]
+  (phi : zambella.Formula (a ⊕ disp))
+  (t : zambella.Term (a ⊕ Fin 0))
+  : IsSigma0B $ iBdEx' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
+| bdAll
+  {disp} [hd : HasDisplayed disp]
+  (phi : zambella.Formula (a ⊕ disp))
+  (t : zambella.Term (a ⊕ Fin 0))
+  : IsSigma0B $ iBdAll' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
 
+| of_isQF {phi} (h : IsQF phi) : IsSigma0B phi
+namespace Sigma0B
 
--- end Sigma0B
+end Sigma0B
 
 end FirstOrder.Language.BoundedFormula

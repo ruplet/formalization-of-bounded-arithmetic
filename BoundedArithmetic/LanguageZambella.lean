@@ -1,5 +1,7 @@
 import Mathlib.ModelTheory.Order
 
+import BoundedArithmetic.LanguagePeano
+
 universe u v
 
 namespace FirstOrder
@@ -95,19 +97,31 @@ instance {M} [h : zambella.Structure M] : HasLen M M :=
 instance {M} [h : zambella.Structure M] : Membership M M :=
   ⟨fun x y => h.RelMap ZambellaRel.mem ![x, y]⟩
 
+instance {M} [h : zambella.Structure M] : peano.Structure M where
+  funMap := fun {arity} f =>
+    match arity, f with
+    | 0, PeanoFunc.zero => fun _ => 0
+    | 0, PeanoFunc.one => fun _ => 1
+    | 2, PeanoFunc.add => fun args => (args 0) + (args 1)
+    | 2, PeanoFunc.mul => fun args => (args 0) * (args 1)
 
-def natToM {M} [h : zambella.Structure M] : Nat -> M
-| 0 => 0
-| 1 => 1
-| n + 1 => natToM n + 1
+  RelMap := fun {arity} r =>
+    match arity, r with
+    | 2, PeanoRel.leq => fun args => (args 0) <= (args 1)
 
+-- use Zero, One instances explicitly to avoid circular dependency
 instance {M} [h : zambella.Structure M] (n) : OfNat M n where
-  ofNat := natToM n
+  ofNat := aux n
+where
+  aux : Nat -> M
+    | 0 => Zero.zero
+    | 1 => One.one
+    | n + 1 => (aux n) + One.one
 
 @[simp] lemma realize_zero_to_zero {M} [zambella.Structure M] {a} {env : a → M} :
   Language.Term.realize env (0 : zambella.Term a) = (0 : M) := by
   simp only [OfNat.ofNat, Zero.zero]
-  simp only [zambella, Term.realize_constants, natToM, OfNat.ofNat, Zero.zero]
+  simp only [zambella, Term.realize_constants]
   rfl
 
 -- it is important to define OfNat 1 as 1, not (0+1), as the later needs an axiom to
@@ -115,7 +129,7 @@ instance {M} [h : zambella.Structure M] (n) : OfNat M n where
 @[simp] lemma realize_one_to_one {M} [zambella.Structure M] {a} {env : a → M} :
   Term.realize env (1 : zambella.Term a) = (1 : M) := by
   simp only [OfNat.ofNat, One.one]
-  simp only [zambella, Term.realize_constants, natToM, OfNat.ofNat]
+  simp only [zambella, Term.realize_constants]
   rfl
 
 @[simp] lemma realize_add_to_add {M} [h : zambella.Structure M] {a} {env : a → M}

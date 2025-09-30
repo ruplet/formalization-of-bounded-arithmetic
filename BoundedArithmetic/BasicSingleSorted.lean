@@ -13,7 +13,7 @@ class BASICModel (num : Type*) extends peano.Structure num where
   B4 : ∀ x y : num, x + (y + 1) = (x + y) + 1
   B5 : ∀ x   : num, x * 0 = 0
   B6 : ∀ x y : num, x * (y + 1) = x * y + x
-  B7 : ∀ x y : num, x <= y ∧ y <= x -> x = y
+  B7 : ∀ x y : num, x <= y -> y <= x -> x = y
   B8 : ∀ x y : num, x <= x + y
   C  : (0 : num) + 1 = 1
 
