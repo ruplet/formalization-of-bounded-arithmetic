@@ -413,9 +413,22 @@ inductive IsSigma0B : {n : Nat} -> zambella.BoundedFormula a n -> Prop
   (phi : zambella.Formula (a ⊕ disp))
   (t : zambella.Term (a ⊕ Fin 0))
   : IsSigma0B $ iBdAll' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
+| bdAllLt
+  {disp} [hd : HasDisplayed disp]
+  (phi : zambella.Formula (a ⊕ disp))
+  (t : zambella.Term (a ⊕ Fin 0))
+  : IsSigma0B $ iBdAllLt' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
 
 | of_isQF {phi} (h : IsQF phi) : IsSigma0B phi
+
+
 namespace Sigma0B
+
+@[delta0_simps]
+theorem relabelEquiv {a b} {g : a ≃ b} (phi : zambella.Formula a):
+  (phi.relabelEquiv g).IsSigma0B <-> phi.IsSigma0B :=
+by
+  sorry
 
 end Sigma0B
 

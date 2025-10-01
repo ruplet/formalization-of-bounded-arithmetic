@@ -65,10 +65,6 @@ by
     · apply IsDelta0.bdEx
   · intro a hind ha
     exact B8 a 1
-    -- exists a
-    -- constructor
-    -- · exact B8 a 1
-    -- · exact rfl
   · exact hx
 
 theorem ex_lt {a} [LE a] {t} {P : a -> Prop} : (∃ x ≤ t, P x) -> ∃ x, P x := by

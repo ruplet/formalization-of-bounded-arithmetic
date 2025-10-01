@@ -1,3 +1,4 @@
+import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Order
 
 import BoundedArithmetic.LanguagePeano
@@ -167,6 +168,17 @@ where
   exact Eq.to_iff rfl
 
 end Semantics
+
+/-- The membership relation of two terms as a bounded formula -/
+def _root_.FirstOrder.Term.in {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ (Fin n))) : zambella.BoundedFormula a n :=
+  Relations.boundedFormula₂ ZambellaRel.mem t1 t2
+@[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∈' " => Term.in
+
+/-- The not-mem relation of two terms as a bounded formula -/
+def _root_.FirstOrder.Term.notin {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ (Fin n))) : zambella.BoundedFormula a n :=
+  ∼(t1 ∈' t2)
+
+@[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∉' " => Term.notin
 
 
 end FirstOrder.Language.zambella

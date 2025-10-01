@@ -31,13 +31,66 @@ inductive Vars2xz | x | z deriving DecidableEq, IsEnum
 inductive Vars2yz | y | z deriving DecidableEq, IsEnum
 inductive Vars3 | x | y | z deriving DecidableEq, IsEnum
 
-instance : HasVar_x Vars1x where x := .x
-instance : HasVar_y Vars1y where y := .y
-instance : HasVar_z Vars1z where z := .z
+-- BEGIN UGLY ADDITION
+class HasVar_X (α : Type*) where X : α
 
-instance : HasDisplayed Vars1x where fv := .x; allEq := by exact fun a b ↦ rfl
-instance : HasDisplayed Vars1y where fv := .y; allEq := by exact fun a b ↦ rfl
-instance : HasDisplayed Vars1z where fv := .z; allEq := by exact fun a b ↦ rfl
+inductive Vars1X | X deriving DecidableEq, IsEnum
+inductive Vars3X | x | y | z | X deriving DecidableEq, IsEnum
+inductive Vars2xyX | x | y | X deriving DecidableEq, IsEnum
+inductive Vars2yX | y | X deriving DecidableEq, IsEnum
+inductive Vars2yzX | y | z | X deriving DecidableEq, IsEnum
+
+@[delta0_simps] instance : HasVar_x Vars3X where x := .x
+@[delta0_simps] instance : HasVar_y Vars3X where y := .y
+@[delta0_simps] instance : HasVar_z Vars3X where z := .z
+@[delta0_simps] instance : HasVar_x Vars2xyX where x := .x
+@[delta0_simps] instance : HasVar_y Vars2xyX where y := .y
+@[delta0_simps] instance : HasVar_y Vars2yzX where y := .y
+@[delta0_simps] instance : HasVar_z Vars2yzX where z := .z
+@[delta0_simps] instance : HasVar_y Vars2yX where y := .y
+
+@[delta0_simps] instance : HasVar_X Vars1X where X := .X
+@[delta0_simps] instance : HasVar_X Vars3X where X := .X
+@[delta0_simps] instance : HasVar_X Vars2xyX where X := .X
+@[delta0_simps] instance : HasVar_X Vars2yX where X := .X
+@[delta0_simps] instance : HasVar_X Vars2yzX where X := .X
+
+
+@[delta0_simps] def X {k} [h : HasVar_X α]: L.Term (α ⊕ Fin k) := (L.var $ Sum.inl h.X)
+instance : HasDisplayed Vars1X where fv := .X; allEq := by exact fun a b ↦ rfl
+
+namespace IsEnum.size
+@[delta0_simps] lemma Vars1X     : IsEnum.size Vars1X   = 1 := rfl
+@[delta0_simps] lemma Vars3X     : IsEnum.size Vars3X   = 4 := rfl
+@[delta0_simps] lemma Vars2xyX   : IsEnum.size Vars2xyX   = 3 := rfl
+@[delta0_simps] lemma Vars2yzX   : IsEnum.size Vars2yzX   = 3 := rfl
+@[delta0_simps] lemma Vars2yX   : IsEnum.size Vars2yX   = 2 := rfl
+end IsEnum.size
+
+namespace IsEnum.toIdx
+@[delta0_simps] lemma Vars1X     : IsEnum.toIdx Vars1X.X   = 0 := rfl
+@[delta0_simps] lemma Vars3X_x   : IsEnum.toIdx Vars3X.x   = 0 := rfl
+@[delta0_simps] lemma Vars3X_y   : IsEnum.toIdx Vars3X.y   = 1 := rfl
+@[delta0_simps] lemma Vars3X_z   : IsEnum.toIdx Vars3X.z   = 2 := rfl
+@[delta0_simps] lemma Vars3X_X   : IsEnum.toIdx Vars3X.X   = 3 := rfl
+@[delta0_simps] lemma Vars2xyX_x   : IsEnum.toIdx Vars2xyX.x   = 0 := rfl
+@[delta0_simps] lemma Vars2xyX_y   : IsEnum.toIdx Vars2xyX.y   = 1 := rfl
+@[delta0_simps] lemma Vars2xyX_X   : IsEnum.toIdx Vars2xyX.X   = 2 := rfl
+@[delta0_simps] lemma Vars2yzX_y   : IsEnum.toIdx Vars2yzX.y   = 0 := rfl
+@[delta0_simps] lemma Vars2yzX_z   : IsEnum.toIdx Vars2yzX.z   = 1 := rfl
+@[delta0_simps] lemma Vars2yzX_X   : IsEnum.toIdx Vars2yzX.X   = 2 := rfl
+@[delta0_simps] lemma Vars2yX_y   : IsEnum.toIdx Vars2yX.y   = 0 := rfl
+@[delta0_simps] lemma Vars2yX_X   : IsEnum.toIdx Vars2yX.X   = 1 := rfl
+end IsEnum.toIdx
+-- END
+
+@[delta0_simps] instance : HasVar_x Vars1x where x := .x
+@[delta0_simps] instance : HasVar_y Vars1y where y := .y
+@[delta0_simps] instance : HasVar_z Vars1z where z := .z
+
+@[delta0_simps] instance : HasDisplayed Vars1x where fv := .x; allEq := by exact fun a b ↦ rfl
+@[delta0_simps] instance : HasDisplayed Vars1y where fv := .y; allEq := by exact fun a b ↦ rfl
+@[delta0_simps] instance : HasDisplayed Vars1z where fv := .z; allEq := by exact fun a b ↦ rfl
 
 instance [HasDisplayed α] : IsEnum α where
   size := 1
@@ -46,20 +99,16 @@ instance [HasDisplayed α] : IsEnum α where
   to_from_id id := by rw [Fin.eq_zero id]
   from_to_id elt := by subsingleton
 
-deriving instance IsEnum for Vars1x
-deriving instance IsEnum for Vars1y
-deriving instance IsEnum for Vars1z
+@[delta0_simps] instance : HasVar_x Vars2xy where x := Vars2xy.x
+@[delta0_simps] instance : HasVar_y Vars2xy where y := Vars2xy.y
+@[delta0_simps] instance : HasVar_x Vars2xz where x := Vars2xz.x
+@[delta0_simps] instance : HasVar_z Vars2xz where z := Vars2xz.z
+@[delta0_simps] instance : HasVar_y Vars2yz where y := Vars2yz.y
+@[delta0_simps] instance : HasVar_z Vars2yz where z := Vars2yz.z
 
-instance : HasVar_x Vars2xy where x := Vars2xy.x
-instance : HasVar_y Vars2xy where y := Vars2xy.y
-instance : HasVar_x Vars2xz where x := Vars2xz.x
-instance : HasVar_z Vars2xz where z := Vars2xz.z
-instance : HasVar_y Vars2yz where y := Vars2yz.y
-instance : HasVar_z Vars2yz where z := Vars2yz.z
-
-instance : HasVar_x Vars3 where x := Vars3.x
-instance : HasVar_y Vars3 where y := Vars3.y
-instance : HasVar_z Vars3 where z := Vars3.z
+@[delta0_simps] instance : HasVar_x Vars3 where x := Vars3.x
+@[delta0_simps] instance : HasVar_y Vars3 where y := Vars3.y
+@[delta0_simps] instance : HasVar_z Vars3 where z := Vars3.z
 
 namespace IsEnum.size
 @[delta0_simps] lemma Empty   : IsEnum.size Empty   = 0 := rfl
@@ -109,6 +158,22 @@ namespace z
 @[delta0_simps] lemma _2yz {k} : z (α := Vars2yz) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .z) := by rfl
 @[delta0_simps] lemma _3 {k} : z (α := Vars3) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .z) := by rfl
 end z
+
+-- BEGIN UGLY ADDITION
+namespace x
+@[delta0_simps] lemma _2xyX {k} : x (α := Vars2xyX) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .x) := by rfl
+end x
+
+namespace y
+@[delta0_simps] lemma _2xyX {k} : y (α := Vars2xyX) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .y) := by rfl
+@[delta0_simps] lemma _2yzX {k} : y (α := Vars2yzX) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .y) := by rfl
+@[delta0_simps] lemma _2yX {k} : y (α := Vars2yX) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .y) := by rfl
+end y
+
+namespace z
+@[delta0_simps] lemma _2yzX {k} : z (α := Vars2yzX) = (L.var (α := _ ⊕ Fin k) $ Sum.inl .z) := by rfl
+end z
+-- END
 
 namespace BoundedFormula
 variable {disp : Type u} [HasDisplayed disp]
@@ -270,6 +335,112 @@ def display_z_xyz (phi : L.Formula Vars3) : L.Formula (Vars1z ⊕ Vars2xy) :=
       intro v; cases v <;> simp only
   }
 
+-- BEGIN UGLY ADDITION...
+@[delta0_simps]
+def display_x_xyzX (phi : L.Formula Vars3X) : L.Formula (Vars1x ⊕ Vars2yzX) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .x => Sum.inl .x
+      | .y => Sum.inr .y
+      | .z => Sum.inr .z
+      | .X => Sum.inr .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .x
+      | .inr .y   => .y
+      | .inr .z   => .z
+      | .inr .X   => .X)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+@[delta0_simps]
+def display_z_xyzX (phi : L.Formula Vars3X) : L.Formula (Vars1z ⊕ Vars2xyX) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .x => Sum.inr .x
+      | .y => Sum.inr .y
+      | .z => Sum.inl .z
+      | .X => Sum.inr .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .z
+      | .inr .y   => .y
+      | .inr .x   => .x
+      | .inr .X   => .X)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+@[delta0_simps]
+def display_X_yzX (phi : L.Formula Vars2yzX) : L.Formula (Vars1X ⊕ Vars2yz) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .y => Sum.inr .y
+      | .z => Sum.inr .z
+      | .X => Sum.inl .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .X
+      | .inr .y   => .y
+      | .inr .z   => .z)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+@[delta0_simps]
+def display_X_xyX (phi : L.Formula Vars2xyX) : L.Formula (Vars1X ⊕ Vars2xy) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .y => Sum.inr .y
+      | .x => Sum.inr .x
+      | .X => Sum.inl .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .X
+      | .inr .y   => .y
+      | .inr .x   => .x)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+@[delta0_simps]
+def display_z_yzX (phi : L.Formula Vars2yzX) : L.Formula (Vars1z ⊕ Vars2yX) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .y => Sum.inr .y
+      | .z => Sum.inl .z
+      | .X => Sum.inr .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .z
+      | .inr .y   => .y
+      | .inr .X   => .X)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+@[delta0_simps]
+def display_X_yX (phi : L.Formula Vars2yX) : L.Formula (Vars1X ⊕ Vars1y) :=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .y => Sum.inr .y
+      | .X => Sum.inl .X)
+    invFun := (fun fv => match fv with
+      | .inl _    => .X
+      | .inr .y   => .y)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+  }
+-- END
+
+
 @[delta0_simps]
 def flip (phi : L.Formula (α ⊕ β)) : L.Formula (β ⊕ α) :=
   phi.relabelEquiv {
@@ -277,6 +448,21 @@ def flip (phi : L.Formula (α ⊕ β)) : L.Formula (β ⊕ α) :=
     invFun := Sum.swap
     left_inv := Sum.swap_leftInverse
     right_inv := Sum.swap_rightInverse
+  }
+
+@[delta0_simps]
+def mkInl (phi : L.Formula α) : L.Formula (α ⊕ Empty) :=
+  phi.relabelEquiv {
+    toFun := Sum.inl
+    invFun := Sum.elim id Empty.elim
+    left_inv := by
+      intro x
+      simp only [Sum.elim_inl, id_eq]
+    right_inv := by
+      intro x
+      cases x with
+      | inl x => simp only [Sum.elim_inl, id_eq]
+      | inr x => apply Empty.elim x
   }
 
 end BoundedFormula
