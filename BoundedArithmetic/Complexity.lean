@@ -1,118 +1,70 @@
 import Mathlib.ModelTheory.Complexity
+import Mathlib.ModelTheory.Syntax
 
 import BoundedArithmetic.DisplayedVariables
 import BoundedArithmetic.Order
 import BoundedArithmetic.LanguagePeano
 import BoundedArithmetic.LanguageZambella
+import BoundedArithmetic.Register
 
-open FirstOrder Language BoundedFormula Formula
+open FirstOrder Language
 
 universe u
-variable {L : Language} [IsOrdered L] {a : Type u}
+variable {L : Language} {α β : Type u} {n : Nat}
 
+namespace FirstOrder.Language
 
-namespace FirstOrder.Language.BoundedFormula
+namespace BoundedFormula.IsAtomic
+variable {φ : L.BoundedFormula α n}
 
-namespace IsAtomic
-
-@[delta0_simps]
-theorem relabelEquiv.mp {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m}
-    (f : α ≃ β) (h : φ.IsAtomic) : (φ.relabelEquiv f).IsAtomic :=
+theorem relabelEquiv.mpr {f : α ≃ β} (h : φ.IsAtomic)
+  : (φ.relabelEquiv f).IsAtomic
+:=
   IsAtomic.recOn h (fun _ _ => IsAtomic.equal _ _) fun _ _ => IsAtomic.rel _ _
 
-theorem relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : (φ.relabelEquiv f).IsAtomic)
-     : φ.IsAtomic :=
+theorem relabelEquiv.mp {f : α ≃ β} (h : (φ.relabelEquiv f).IsAtomic)
+  : φ.IsAtomic :=
+by
+  unfold relabelEquiv mapTermRelEquiv at h
+  simp at h
+  -- dependent eliminatoin failed ;(
+  -- cases h with
   sorry
 
-theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
+@[delta0_simps]
+theorem relabelEquiv {f : α ≃ β} :
   (φ.relabelEquiv f).IsAtomic <-> φ.IsAtomic :=
-  ⟨relabelEquiv.mpr f, relabelEquiv.mp f⟩
+  ⟨relabelEquiv.mp, relabelEquiv.mpr⟩
+end BoundedFormula.IsAtomic
+
+namespace Formula.IsAtomic
+open BoundedFormula
 
 @[delta0_simps]
-theorem display {disp} [HasDisplayed disp] (phi : L.Formula disp):
-  phi.display.IsAtomic <-> phi.IsAtomic :=
+theorem display1 {n1} {phi : L.Formula (Vars1 n1)}:
+  phi.display1.IsAtomic <-> phi.IsAtomic :=
 by
-  unfold BoundedFormula.display
-  rw [relabelEquiv]
+  unfold Formula.display1
+  rw [IsAtomic.relabelEquiv]
 
-end IsAtomic
-
-
--- Definition 3.7, page 36 of draft (47 of pdf)
-abbrev IsOpen {a} {n} (formula : L.BoundedFormula a n) := IsQF formula
-
-namespace IsOpen
-
-omit [IsOrdered L] in
 @[delta0_simps]
-theorem equal {a n} (t1 t2 : L.Term (a ⊕ Fin n))
-  : (t1.bdEqual t2).IsOpen :=
+theorem display2 {n1 n2} {phi : L.Formula (Vars2 n1 n2)}:
+  phi.display2.IsAtomic <-> phi.IsAtomic :=
 by
-  constructor
-  apply IsAtomic.equal
+  unfold Formula.display2
+  rw [IsAtomic.relabelEquiv]
 
 @[delta0_simps]
-theorem relabelEquiv {a b} {g : a ≃ b} (phi : L.Formula a):
-  (phi.relabelEquiv g).IsOpen <-> phi.IsOpen :=
+theorem display3 {n1 n2 n3} {phi : L.Formula (Vars3 n1 n2 n3)}:
+  phi.display3.IsAtomic <-> phi.IsAtomic :=
 by
-  constructor <;> intro h
-  · -- dependent elimination failed on 'cases h' :(((
-    sorry
-  · cases h with
-    | falsum =>
-      rw [relabelEquiv.falsum]
-      exact IsQF.falsum
-    | of_isAtomic h =>
-      constructor
-      rw [IsAtomic.relabelEquiv]
-      exact h
-    | imp hphi hpsi =>
-      rw [relabelEquiv.imp]
-      apply IsQF.imp
-        <;> rw [<- IsOpen]
-        <;> rw [IsOpen.relabelEquiv]
-        <;> assumption
+  unfold Formula.display3
+  rw [IsAtomic.relabelEquiv]
 
-@[delta0_simps]
-theorem display {disp} [HasDisplayed disp] (phi : L.Formula disp):
-    phi.display.IsOpen <-> phi.IsOpen := by
-  unfold BoundedFormula.display
-  rw [relabelEquiv]
-
-end IsOpen
+end Formula.IsAtomic
 
 
-
--- Definition 3.7, page 36 of draft (47 of pdf)
--- + Definition 3.6, page 35 of draft (46 of pdf)
-inductive IsDelta0 : {n : Nat} -> L.BoundedFormula a n -> Prop
-| imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
-| bdEx
-  {disp} [HasDisplayed disp]
-  (phi : L.Formula (a ⊕ disp))
-  (t : L.Term (a ⊕ Fin 0))
-  : IsDelta0 $ iBdEx' t phi
-
-| bdAll
-  {disp} [HasDisplayed disp]
-  (phi : L.Formula (a ⊕ disp))
-  (t : L.Term (a ⊕ Fin 0))
-  : IsDelta0 $ iBdAll' t phi
-| of_isQF {phi} (h : IsQF phi) : IsDelta0 phi
-
-
-
--- THIS IS NOT TRUE!
--- @[simp]
--- theorem not_inf {L : Language} {α} {k} (φ ψ : L.BoundedFormula α k) :
---   (φ ⊓ ψ).not = (φ.not) ⊔ (ψ.not) := by
---   unfold min instMin max instMax
---   simp only
---   unfold BoundedFormula.not
-
-
-
-namespace IsQF
+namespace BoundedFormula.IsQF
 
 @[delta0_simps]
 theorem imp.mpr {L : Language} {α} {m} {φ ψ : L.BoundedFormula α m} :
@@ -148,97 +100,119 @@ theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α 
 --   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
 --   sorry
 
-end IsQF
+end BoundedFormula.IsQF
+
+
+
+-- Definition 3.7, page 36 of draft (47 of pdf)
+abbrev BoundedFormula.IsOpen (formula : L.BoundedFormula α n)
+  := IsQF formula
+namespace BoundedFormula.IsOpen
+variable {phi : L.BoundedFormula α n}
+
+@[delta0_simps]
+theorem equal (t1 t2 : L.Term (α ⊕ Fin n))
+  : (t1.bdEqual t2).IsOpen :=
+by
+  constructor
+  apply IsAtomic.equal
+
+@[delta0_simps]
+theorem imp.mpr.left {psi : _}
+  : (phi.imp psi).IsOpen -> phi.IsOpen :=
+by
+  intro h
+  -- TODO: order of constructors in IsQF should be reversed,
+  -- so that `constructor` here works!
+  cases h with
+  | of_isAtomic h => cases h
+  | imp p q => exact p
+
+@[delta0_simps]
+theorem imp.mpr.right {psi : _}
+  : (phi.imp psi).IsOpen -> psi.IsOpen :=
+by
+  intro h
+  cases h with
+  | of_isAtomic h => cases h
+  | imp p q => exact q
+
+@[delta0_simps]
+theorem not
+  : phi.not.IsOpen <-> phi.IsOpen :=
+by
+  constructor <;> (unfold BoundedFormula.not; intro h)
+  · exact imp.mpr.left h
+  · apply IsQF.imp
+    · assumption
+    · exact isQF_bot
+
+@[delta0_simps]
+theorem relabelEquiv {f : α ≃ β}
+  : (phi.relabelEquiv f).IsOpen <-> phi.IsOpen :=
+by
+  constructor <;> intro h
+  · -- dependent elimination failed on 'cases h' :(((
+    sorry
+  · induction h with
+    | falsum =>
+      rw [relabelEquiv.falsum]
+      exact IsQF.falsum
+    | of_isAtomic h =>
+      constructor
+      rw [IsAtomic.relabelEquiv]
+      exact h
+    | imp h1 h2 h1_ih h2_ih =>
+      rw [relabelEquiv.imp]
+      apply IsQF.imp
+      · exact h1_ih
+      · exact h2_ih
+
+end BoundedFormula.IsOpen
+
+namespace Formula.IsOpen
+open BoundedFormula.IsOpen
+
+@[delta0_simps]
+theorem display1 {n1} {phi : L.Formula (Vars1 n1)}:
+    phi.display1.IsOpen <-> phi.IsOpen := by
+  unfold Formula.display1
+  rw [relabelEquiv]
+
+@[delta0_simps]
+theorem display2 {n1 n2} {phi : L.Formula (Vars2 n1 n2)}:
+    phi.display2.IsOpen <-> phi.IsOpen := by
+  unfold Formula.display2
+  rw [relabelEquiv]
+
+@[delta0_simps]
+theorem display3 {n1 n2 n3} {phi : L.Formula (Vars3 n1 n2 n3)}:
+    phi.display3.IsOpen <-> phi.IsOpen := by
+  unfold Formula.display3
+  rw [relabelEquiv]
+
+end Formula.IsOpen
+
+
+
+variable {L : Language} [IsOrdered L] {a : Type u}
+open BoundedFormula Formula
+
+-- Definition 3.7, page 36 of draft (47 of pdf)
+-- + Definition 3.6, page 35 of draft (46 of pdf)
+-- fix level of `a` to 0, because level of `Vars` was fixed to 0!
+inductive BoundedFormula.IsDelta0 {a : Type}: {n : Nat} -> L.BoundedFormula a n -> Prop
+| imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2)
+  : IsDelta0 (phi1.imp phi2)
+| bdEx {n} (phi : L.Formula (a ⊕ (Vars1 n))) (t : L.Term (a ⊕ Fin 0))
+  : IsDelta0 $ iBdEx' t phi
+| bdAll {n} (phi : L.Formula (a ⊕ (Vars1 n))) (t : L.Term (a ⊕ Fin 0))
+  : IsDelta0 $ iBdAll' t phi
+| of_isQF {phi} (h : BoundedFormula.IsQF phi)
+  : IsDelta0 phi
 
 
 namespace IsDelta0
-
-
--- Ex x < 7, phi(x) := ~All x, ~(x < 7 and phi(x))
--- NONE OF THESE THEOREMS ARE TRUE WHEN WE DON'T ALLOW
-
-
--- failed attempt at proving (false) theorem IsDelta (p->q) -> IsDelta p, IsDelta q
--- -- omit [L.IsOrdered] in
--- -- theorem trans {β n k} : L.BoundedFormula β (n + 1 + k) = L.BoundedFormula β (n + k + 1) := by
--- --   conv => lhs; arg 3; rw [add_assoc]; arg 2; rw [add_comm]
--- --   conv => rhs; arg 3; rw [add_assoc]
-
--- -- omit [L.IsOrdered] in
--- -- variable {α β n} in
--- -- @[simp]
--- -- theorem relabel_all (g : α → β ⊕ (Fin (n + 1))) {k} (φ : L.BoundedFormula α k) :
--- --     φ.all.relabel g = (trans ▸ φ.relabel g).all := by
--- --   rw [relabel, mapTermRel, relabel]
--- --   simp
-
--- theorem imp.mp {a} {n} (phi psi : peano.BoundedFormula a n) : IsDelta0 phi -> IsDelta0 psi -> IsDelta0 (phi.imp psi) := by
---   intro hphi hpsi
---   apply IsDelta0.imp
---   · sorry
---     -- fix universe polymorphism
---     -- exact hphi
---   · sorry
-
--- -- This theorem is not true anymore when NOT modifying ModelTheory,
--- -- i.e. when phi.ex = phi.not.all.not
--- theorem imp.mpr {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi.imp psi) := by
---   apply Iff.intro
---   · intro h
---     apply IsDelta0.imp
---     · exact h.left
---     · exact h.right
---   · intro h
---     cases h with
---     | of_isQF h' =>
---       cases h' with
---       | of_isAtomic h'' =>
---         cases h''
---       | imp hPhi hPsi =>
---         apply And.intro
---         · apply IsDelta0.of_isQF; exact hPhi
---         · apply IsDelta0.of_isQF; exact hPsi
---     | imp hPhi hPsi =>
---       apply And.intro
---       · exact hPhi
---       · exact hPsi
---     | bdEx phi t =>
---       constructor
---       · simp only [<- relabel_not]
---         -- PROBLEM: relabel_all requires BoundedFormula α (>=1), but i have 0!
---         rw [relabel_not]
---         rw [relabel_inf]
---         -- NOW, THIS IS NOT TRUE! (UNPROVABLE): we cannot move this negation
---         -- deeper into the formula. neither move relabel out.
---         -- definition of IDelta0 has to be altered!
---         rw [not_inf]
---         conv => arg 1; rw [<- relabel_all]
-
-
-
---         apply IsDelta0.bdAll
---       · apply IsDelta0.of_isQF
---         constructor
-
-
--- theorem not {a} {n} (phi : peano.BoundedFormula a n) : IsDelta0 phi <-> IsDelta0 phi.not := by
---   apply Iff.intro
---   · intro h
---     unfold BoundedFormula.not
---     apply IsDelta0.imp
---     · exact h
---     · constructor
---       constructor
---   · unfold BoundedFormula.not
---     intro h
---     cases h with
---     | imp hphi hpsi =>
---       exact hphi
---     | bdEx phi t
-
---     rw [<- IsDelta0.imp.mpr]
---     intro h
---     exact h.left
 
 @[delta0_simps]
 theorem bot {a n} : (⊥ : L.BoundedFormula a n).IsDelta0  := by
@@ -253,6 +227,61 @@ by
   constructor
   apply IsAtomic.equal
 
+set_option allowUnsafeReducibility true in
+section
+attribute [local reducible] iBdEx' iBdAll'
+
+theorem of_open.imp {a n} {phi psi : L.BoundedFormula a n} (h : phi.IsOpen)
+  : (phi.imp psi).IsDelta0 <-> (phi.IsDelta0 ∧ psi.IsDelta0) :=
+by
+  constructor
+  · intro h
+    cases h with
+    | imp p q =>
+      constructor
+      · exact p
+      · exact q
+    | of_isQF q =>
+      rw [IsQF.imp.mpr] at q
+      constructor <;>
+        apply IsDelta0.of_isQF
+      · exact q.left
+      · exact q.right
+    | bdEx phi t =>
+      cases h with
+      | of_isAtomic h' =>
+        cases h' with
+  · intro h
+    apply IsDelta0.imp
+    exact h.left
+    exact h.right
+
+theorem of_notfalsum.imp {a n} {phi psi : L.BoundedFormula a n} (h : psi ≠ falsum)
+  : (phi.imp psi).IsDelta0 <-> (phi.IsDelta0 ∧ psi.IsDelta0) :=
+by
+  constructor
+  · intro h'
+    cases h' with
+    | imp p q =>
+      constructor
+      · exact p
+      · exact q
+    | of_isQF q =>
+      rw [IsQF.imp.mpr] at q
+      constructor <;>
+        apply IsDelta0.of_isQF
+      · exact q.left
+      · exact q.right
+    | bdEx phi t =>
+      simp only [Bot.bot, ne_eq, not_true_eq_false] at h
+  · intro h
+    apply IsDelta0.imp
+    exact h.left
+    exact h.right
+
+end
+
+
 @[delta0_simps]
 theorem neq {a n} (t1 t2 : L.Term (a ⊕ Fin n))
   : (t1 ≠' t2).IsDelta0 :=
@@ -261,107 +290,22 @@ by
   apply equal
   apply bot
 
-@[delta0_simps]
-theorem min {a} {n} (phi psi : L.BoundedFormula a n) :
-  IsDelta0 (phi ⊓ psi) <-> (IsDelta0 phi ∧ IsDelta0 psi) :=
+theorem of_open.not {a n} {phi : L.BoundedFormula a n} (h : phi.IsOpen)
+  : phi.not.IsDelta0 <-> phi.IsDelta0 :=
 by
+  unfold BoundedFormula.not
+  rw [of_open.imp h]
   constructor
   · intro h
-    have h' : IsDelta0 ((phi ⟹ ∼psi) ⟹ ⊥) := by
-      simpa only using h
-    sorry
-    -- cases h with
-    -- | imp h' _ =>
-    --   cases h' with
-    --   | imp hphi hpsi =>
-    --     cases hpsi with
-    --     | imp hpsi' =>
-    --       exact ⟨hphi, hpsi'⟩
-  · rintro ⟨hφ, hψ⟩
-    constructor; constructor; assumption; constructor; assumption; exact bot; exact bot
-
--- theorem max {a} {n} (phi psi : peano.BoundedFormula a n) : (IsDelta0 phi ∧ IsDelta0 psi) <-> IsDelta0 (phi ⊔ psi) := by
---   unfold Max.max instMax
---   simp only
---   constructor
---   · intro h
---     constructor
---     rw [<- not]
---     exact h.left
---     exact h.right
---   · intro h
---     cases h with
---     | imp hNotPhi hPsi => rw [<- not] at hNotPhi; constructor <;> assumption
---     | of_isQF h =>
-
---       cases h with | of_isAtomic h =>
-
---   rw [<- IsDelta0.imp.mpr]
---   rw [<- IsDelta0.not]
-
--- theorem foldr_inf {α} {n} (l : List (peano.BoundedFormula α n)) :
---   (l.foldr (· ⊓ ·) ⊤).IsDelta0 ↔ ∀ φ ∈ l, φ.IsDelta0 := by
---   induction l with
---   | nil =>
---     simp only [List.foldr_nil, List.not_mem_nil, IsEmpty.forall_iff, implies_true, iff_true]
---     apply IsDelta0.of_isQF
---     exact IsQF.top
---   | cons φ l ih =>
---     simp only [List.foldr_cons, List.mem_cons, forall_eq_or_imp]
---     constructor
---     · intro h
---       rw [<- min] at h
---       constructor
---       · exact h.left
---       · apply ih.mp
---         exact h.right
---     · intro h
---       rw [<- min]
---       constructor
---       · exact h.left
---       · apply ih.mpr
---         exact h.right
-
--- theorem iInf' {α β} {n} [IsEnum β] (f : β -> peano.BoundedFormula α n) :
---   (BoundedFormula.iInf' f).IsDelta0 ↔ ∀ b, (f b).IsDelta0 := by
---   unfold BoundedFormula.iInf'
---   rw [IsDelta0.foldr_inf]
---   unfold IsEnum.toList
---   simp only [List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
---   constructor
---   · simp only [List.mem_ofFn]
---     intro h b
---     specialize h b
---     apply h
---     exists IsEnum.toIdx b
---     exact IsEnum.from_to_id b
---   · simp only [List.mem_ofFn]
---     intro h _ _
---     apply h
-
--- @[delta0_simps]
--- theorem iBdEx' {a b} [HasDisplayed b] {bdTerm} {phi : peano.Formula (a ⊕ b)}
---   : IsDelta0 $ (Formula.iBdEx' bdTerm phi : peano.BoundedFormula a 0) := by
---   apply IsDelta0.bdEx
-
---   unfold Formula.iBdEx'
---   unfold Formula.iExs'
---   unfold BoundedFormula.exs
---   unfold BoundedFormula.exs
---   simp only
---   simp only [relabel.inf, Nat.add_zero]
---   apply IsDelta0.bdEx
-
-
-
--- @[delta0_simps]
--- theorem mapTermRel {α β} (φ : peano.BoundedFormula α 0) {g : Nat -> Nat} {ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))} {fr} {h}:
---     (φ.mapTermRel ft fr h).IsDelta0 <-> φ.IsDelta0 := by
---   sorry
+    exact h.left
+  · intro h
+    constructor
+    · exact h
+    · exact IsDelta0.bot
 
 @[delta0_simps]
-theorem relabelEquiv {a b} (phi : peano.Formula a) (g : a ≃ b):
-  BoundedFormula.IsDelta0 phi <-> BoundedFormula.IsDelta0 (phi.relabelEquiv g) :=
+theorem relabelEquiv {a b} (phi : peano.Formula a) {g : a ≃ b}:
+  (phi.relabelEquiv g).IsDelta0 <-> BoundedFormula.IsDelta0 phi :=
 by
   cases phi with
   | falsum =>
@@ -376,51 +320,50 @@ by
   | all => sorry
 
 
+theorem display1 {n} (phi : peano.Formula (Vars1 n)) :
+  phi.display1.IsDelta0 <-> phi.IsDelta0 :=
+  IsDelta0.relabelEquiv phi
+
+theorem display2 {n1 n2} (phi : peano.Formula (Vars2 n1 n2)) :
+  phi.display2.IsDelta0 <-> phi.IsDelta0 :=
+  IsDelta0.relabelEquiv phi
+
+theorem display3 {n1 n2 n3} (phi : peano.Formula (Vars3 n1 n2 n3)) :
+  phi.display3.IsDelta0 <-> phi.IsDelta0 :=
+  IsDelta0.relabelEquiv phi
+
+theorem flip {a b} (phi : peano.Formula (a ⊕ b)) :
+  phi.flip.IsDelta0 <-> phi.IsDelta0 :=
+  IsDelta0.relabelEquiv phi
 
 end IsDelta0
 
 
 
 
--- inductive IsDelta0 : {n : Nat} -> L.BoundedFormula a n -> Prop
--- | imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2) : IsDelta0 (phi1.imp phi2)
--- | bdEx
---   {disp} [HasDisplayed disp]
---   (phi : L.Formula (a ⊕ disp))
---   (t : L.Term (a ⊕ Fin 0))
---   : IsDelta0 $ iBdEx' t phi
-
--- | bdAll
---   {disp} [HasDisplayed disp]
---   (phi : L.Formula (a ⊕ disp))
---   (t : L.Term (a ⊕ Fin 0))
---   : IsDelta0 $ iBdAll' t phi
--- | of_isQF {phi} (h : IsQF phi) : IsDelta0 phi
-
-
 -- only bounded number quantifiers allowed. and free string vars.
 -- p. 82 of pdf of Logical Foundatoin release
-inductive IsSigma0B : {n : Nat} -> zambella.BoundedFormula a n -> Prop
+inductive BoundedFormula.IsSigma0B {a : Type} : {n : Nat} -> zambella.BoundedFormula a n -> Prop
 | imp {phi1 phi2} (h1 : IsSigma0B phi1) (h2 : IsSigma0B phi2)
   : IsSigma0B (phi1.imp phi2)
 | bdEx
-  {disp} [hd : HasDisplayed disp]
-  (phi : zambella.Formula (a ⊕ disp))
+  {n}
+  (phi : zambella.Formula (a ⊕ (Vars1 n)))
   (t : zambella.Term (a ⊕ Fin 0))
-  : IsSigma0B $ iBdEx' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
+  : IsSigma0B $ iBdEx' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ .fv1]) ⊓ phi)
+-- TODO: WHICH ONE IS REDUNDANT?
 | bdAll
-  {disp} [hd : HasDisplayed disp]
-  (phi : zambella.Formula (a ⊕ disp))
+  {n}
+  (phi : zambella.Formula (a ⊕ (Vars1 n)))
   (t : zambella.Term (a ⊕ Fin 0))
-  : IsSigma0B $ iBdAll' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
+  : IsSigma0B $ iBdAll' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ .fv1]) ⊓ phi)
 | bdAllLt
-  {disp} [hd : HasDisplayed disp]
-  (phi : zambella.Formula (a ⊕ disp))
+  {n}
+  (phi : zambella.Formula (a ⊕ (Vars1 n)))
   (t : zambella.Term (a ⊕ Fin 0))
-  : IsSigma0B $ iBdAllLt' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ hd.fv]) ⊓ phi)
+  : IsSigma0B $ iBdAllLt' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ .fv1]) ⊓ phi)
 
 | of_isQF {phi} (h : IsQF phi) : IsSigma0B phi
-
 
 namespace Sigma0B
 
@@ -432,4 +375,20 @@ by
 
 end Sigma0B
 
-end FirstOrder.Language.BoundedFormula
+
+
+syntax (name := simp_complexity) "simp_complexity" " at " (ppSpace ident)? : tactic
+
+macro_rules
+| `(tactic| simp_complexity at $h:ident) =>
+  `(tactic|
+  conv at $h =>
+    conv =>
+      lhs
+      simp only [delta0_simps]
+    -- this has to work! the `IsOpen` goal has to reduce to `True`.
+    rw [forall_const]
+  )
+
+
+end FirstOrder.Language

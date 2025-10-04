@@ -15,18 +15,18 @@ variable {L : Language} [IsOrdered L] {α : Type u}
 variable {n r} (a b : L.BoundedFormula n r)
 
 -- there is relabel_sumInl
-@[irreducible] def iBdEx' {α} {β} [HasDisplayed β] (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
-  let bd := (var (.inl (Sum.inr (HasDisplayed.fv)))).le $ bdTerm.relabel (Sum.map .inl id)
+@[irreducible] def iBdEx' {α n} (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ (Vars1 n))) : L.Formula α :=
+  let bd := (var (.inl (Sum.inr (.fv1)))).le $ bdTerm.relabel (Sum.map .inl id)
   iExs' $ bd ⊓ φ
 
-@[irreducible] def iBdAll' {α} {β} [HasDisplayed β] (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
-  let bd := (var (.inl (Sum.inr (HasDisplayed.fv)))).le $ bdTerm.relabel (Sum.map .inl id)
+@[irreducible] def iBdAll' {α n} (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ (Vars1 n))) : L.Formula α :=
+  let bd := (var (.inl (Sum.inr (.fv1)))).le $ bdTerm.relabel (Sum.map .inl id)
   iAlls' $ bd ⟹ φ
 
 -- TODO: there should only be Lt constructors in Complexity
 -- and iBd should be an alias to iBdLt with term + 1
-@[irreducible] def iBdAllLt' {α} {β} [HasDisplayed β] (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ β)) : L.Formula α :=
-  let bd := (var (.inl (Sum.inr (HasDisplayed.fv)))).lt $ bdTerm.relabel (Sum.map .inl id)
+def iBdAllLt' {α n} (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ (Vars1 n))) : L.Formula α :=
+  let bd := (var (.inl (Sum.inr (.fv1)))).lt $ bdTerm.relabel (Sum.map .inl id)
   iAlls' $ bd ⟹ φ
 
 end IsOrdered

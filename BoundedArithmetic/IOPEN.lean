@@ -1,23 +1,27 @@
 -- for a quick demo, jump straight to `theorem add_assoc`
+import Mathlib.Tactic.Core
+import Mathlib.Logic.Basic
+import Mathlib.Tactic
+
 import Mathlib.ModelTheory.Basic
 import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Complexity
 import Mathlib.ModelTheory.Semantics
 
 import BoundedArithmetic.IsEnum
-import BoundedArithmetic.IsEnumProperties
 import BoundedArithmetic.AxiomSchemes
 import BoundedArithmetic.Syntax
+import BoundedArithmetic.Semantics
 import BoundedArithmetic.Complexity
 import BoundedArithmetic.Order
-import BoundedArithmetic.SimpAttrs
 import BoundedArithmetic.BasicSingleSorted
+import BoundedArithmetic.SimpRules
 
 open FirstOrder Language BoundedFormula
 
 class IOPENModel (num : Type*) extends BASICModel num where
-  open_induction {disp a : Type} [HasDisplayed disp] [IsEnum a]
-    (phi : peano.BoundedFormula (disp ⊕ a) 0) :
+  open_induction {n} {a : Type} [IsEnum a]
+    (phi : peano.BoundedFormula ((Vars1 n) ⊕ a) 0) :
     phi.IsOpen -> (mkInductionSentence phi).Realize num
 
 namespace IOPENModel
@@ -28,26 +32,29 @@ variable (M : Type u) [iopen : IOPENModel M]
 
 -- page 36 of draft (47 of pdf)
 -- Example 3.8 The following formulas (and their universal closures) are theorems of IOPEN:
-open BASICModel
+open BASICModel Formula Term
+
+open Lean Elab Tactic
+
+theorem forall_swap_231 {α β γ} {p : α -> β -> γ -> Prop}
+  : (∀ x y z, p x y z) <-> (∀ z x y, p x y z) :=
+  ⟨fun f z x y  => f x y z, fun f y z x => f x y z⟩
 
 -- O1. (x + y) + z = x + (y + z) (Associativity of +)
 -- proof: induction on z
 theorem add_assoc
   : ∀ x y z : M, (x + y) + z = x + (y + z) :=
 by
-  -- the below block is a set of repetitive conversion we need to do;
-  -- this should be automatized by a single tactic
-  have ind := open_induction (self := iopen)
-    (display_z_xyz  $ ((x + y) + z) =' (x + (y + z)))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  -- now, we cannot simply do `apply ind` without `intros`,
-  -- because our induction formula has a different order of quantifiers;
-  -- Lean can't unify ∀x y, phi(x, y) with ∀y x, phi(x, y)
-  -- see also: refer to Mathlib.Logic.Basic.forall_swap
-  intros
-  apply ind ?base ?step
-  clear ind
+  -- TODO: how to make Lean infer these formulas?
+  let phi : peano.Formula (Vars3 .z .x .y) :=
+    ((x + y) + z) =' (x + (y + z))
+  have ind := iopen.open_induction $ display3 .z phi
+  unfold phi at ind
+  simp_complexity at ind
+  simp_induction at ind
+
+  rw [forall_swap_231]
+  apply ind ?base ?step; clear ind
   · intro x y
     rw [B3 (x + y)]
     rw [B3 y]
@@ -63,14 +70,12 @@ by
 lemma add_zero_comm
   : ∀ x : M, x + 0 = 0 + x :=
 by
-  have ind :=
-    open_induction (self := iopen)
-      (display_x_x $ ((x + 0) =' (0 + x)))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display1
+    (((x + 0) =' (0 + x)) : Formula _ (Vars1 .x))
+  simp_complexity at ind
+  simp_induction at ind
+
+  apply ind ?base ?step; clear ind
   · trivial
   · intro a ha
     rw [← add_assoc]
@@ -82,37 +87,39 @@ by
 lemma zero_add
   : ∀ x : M, 0 + x = x :=
 by
-    intro a
-    rw [<- add_zero_comm]
-    exact B3 a
+  intro a
+  rw [<- add_zero_comm]
+  exact B3 a
 
 -- lemma for O2; "induction on y, first establishing the special cases y = 0 and y = 1..."
 theorem add_one_comm
   : ∀ x : M, x + 1 = 1 + x :=
 by
-  have ind := open_induction (self := iopen)
-    (display_x_x $ ((x + 1) =' (1 + x)))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display1
+    (((x + 1) =' (1 + x)) : Formula _ (Vars1 .x))
+  simp_complexity at ind
+  simp_induction at ind
+
+  apply ind ?base ?step; clear ind
   · rw [zero_add, B3]
   · intro a ha
     rw [<- add_assoc]
     rw [ha]
+
+#check forall_swap
 
 -- O2. x + y = y + x (Commutativity of +)
 -- proof : induction on y, first establishing the special cases y = 0 and y = 1
 theorem add_comm
   : ∀ x y : M, x + y = y + x :=
 by
-  have ind := open_induction (self := iopen) (display_y_xy $ ((x + y) =' (y + x)))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display2 .y
+    (((x + y) =' (y + x)) : Formula _ (Vars2 .y .x))
+  simp_complexity at ind
+  simp_induction at ind
+
+  rw [forall_swap]
+  apply ind ?base ?step; clear ind
   · intro; rw [add_zero_comm]
   · intro a hInd b
     rw [<- add_assoc]
@@ -126,12 +133,13 @@ by
 theorem mul_add
   : ∀ x y z : M, x * (y + z) = (x * y) + (x * z) :=
 by
-  have ind := open_induction (self := iopen) (display_z_xyz $ ((x * (y + z)) =' ((x * y) + (x * z))))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display3 .z
+     ((x * (y + z)) =' ((x * y) + (x * z)) : Formula _ (Vars3 .z .x .y))
+  simp_complexity at ind
+  simp_induction at ind
+
+  rw [forall_swap_231]
+  apply ind ?base ?step; clear ind
   · intro a b
     rw [B3]
     rw [B5]
@@ -161,13 +169,14 @@ by
 theorem mul_assoc
   : ∀ x y z : M, (x * y) * z = x * (y * z) :=
 by
-  have ind := open_induction (self := iopen)
-    (display_z_xyz $ (((x * y) * z) =' (x * (y * z))))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display3 .z
+    ((((x * y) * z) =' (x * (y * z))) : Formula _ (Vars3 .z .x .y))
+
+  simp_complexity at ind
+  simp_induction at ind
+
+  rw [forall_swap_231]
+  apply ind ?base ?step; clear ind
   · intro x y
     rw [B5]
     rw [B5]
@@ -183,13 +192,11 @@ by
 lemma zero_mul
   : ∀ x : M, 0 * x = 0 :=
 by
-  have ind := open_induction (self := iopen)
-    (display_x_x $ (0 * x) =' 0)
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display1
+    (((0 * x) =' 0) : Formula _ (Vars1 .x))
+  simp_complexity at ind
+  simp_induction at ind
+  apply ind ?base ?step; clear ind
   · rw [B5]
   · intro x hInd_0_x
     rw [B6]
@@ -199,12 +206,11 @@ by
 lemma one_mul
   : ∀ x : M, 1 * x = x :=
 by
-  have ind := open_induction (self := iopen) (display_x_x $ (1 * x) =' x)
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display1
+    (((1 * x) =' x) : Formula _ (Vars1 .x))
+  simp_complexity at ind
+  simp_induction at ind
+  apply ind ?base ?step; clear ind
   · rw [B5]
   · intro x hInd_1_x
     rw [B6]
@@ -213,12 +219,12 @@ by
 lemma mul_add_1_left
   : ∀ x y : M, (x + 1) * y = x * y + y :=
 by
-  have ind := open_induction (self := iopen) (display_y_xy $ ((x + 1) * y) =' ((x * y) + y))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display2 .y
+    (((x + 1) * y) =' ((x * y) + y) : Formula _ (Vars2 .y .x))
+  simp_complexity at ind
+  simp_induction at ind
+  rw [forall_swap]
+  apply ind ?base ?step; clear ind
   · intro x
     rw [B5]
     rw [B5]
@@ -234,12 +240,12 @@ by
 theorem mul_comm
   : ∀ x y : M, x * y = y * x :=
 by
-  have ind := open_induction (self := iopen) (display_y_xy $ (x * y) =' (y * x))
-  simp only [delta0_simps] at ind
-  specialize ind trivial
-  intros
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display2 .y
+    (((x * y) =' (y * x)) : Formula _ (Vars2 .y .x))
+  simp_complexity at ind
+  simp_induction at ind
+  rw [forall_swap]
+  apply ind ?base ?step; clear ind
   · intro x
     rw [B5]
     rw [zero_mul]
@@ -248,16 +254,21 @@ by
     rw [mul_add_1_left]
     rw [hInd_x]
 
+example : Nonempty (True ∧ True) :=
+  ⟨⟨⟨⟩, ⟨⟩⟩⟩
+
 -- O6. x + z = y + z → x = y (Cancellation law for +)
 theorem add_cancel_right.mp
   : ∀ x y z : M, x + z = y + z → x = y :=
 by
-  have ind := open_induction (self := iopen) (display_z_xyz $ ((x + z) =' (y + z) ⟹ (x =' y)))
-  simp only [delta0_simps] at ind
-  specialize ind (by exact ⟨trivial, trivial⟩)
-  intros x y z
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display3 .z
+    (((x + z) =' (y + z) ⟹ (x =' y)) : Formula _ (Vars3 .z .x .y))
+
+  simp_complexity at ind
+  simp_induction at ind
+
+  rw [forall_swap_231]
+  apply ind ?base ?step; clear ind
   · intro x y
     rw [B3]
     rw [B3]
@@ -323,14 +334,12 @@ by
 theorem ne_succ
   : ∀ x : M, x ≠ x + 1 :=
 by
-  have ind := open_induction (self := iopen) (display_x_x $ x ≠' (x + 1))
-  simp only [Term.neq, BoundedFormula.not, delta0_simps] at ind
-  specialize ind (by
-    refine ⟨trivial, isQF_bot⟩
-  )
-  intro x
-  apply ind ?base ?step
-  clear ind
+  have ind := iopen.open_induction $ display1
+    ((x ≠' (x + 1)) : Formula _ (Vars1 .x))
+  simp_complexity at ind
+  simp_induction at ind
+
+  apply ind ?base ?step; clear ind
   · intro h
     -- TODO: why this self is necessary?
     apply B1 (self := iopen.toBASICModel)
@@ -341,7 +350,6 @@ by
     apply B2
     exact hq
 
-
 theorem add_mul
   : ∀ x y z : M, (x + y) * z = x * z + y * z :=
 by
@@ -350,50 +358,5 @@ by
   rw [mul_add]
   rw [mul_comm]
   conv => lhs; rhs; rw [mul_comm]
-
-
-
--- INSTANCES!
-
-
-theorem isAddRightRegular_one : IsAddRightRegular (1 : M) := by
-  unfold IsAddRightRegular Function.Injective
-  exact B2
-
-instance : IsRightCancelAdd M where
-  add_right_cancel := by
-    intro a
-    unfold IsAddRightRegular Function.Injective
-    intro b c
-    simp only
-    apply add_cancel_right.mp
-
-instance : MulZeroClass M where
-  zero_mul := zero_mul M
-  mul_zero := B5
-
-instance : CommMonoid M where
-  mul_assoc := mul_assoc M
-  one_mul := one_mul M
-  mul_one := mul_one M
-  mul_comm := mul_comm M
-
-instance : AddCommMonoid M where
-  add_assoc := add_assoc M
-  zero_add := zero_add M
-  add_zero := by
-    exact B3
-  nsmul := nsmulRec
-  add_comm := add_comm M
-
-instance : Semiring M where
-  left_distrib := by
-    exact fun a b c ↦ IOPENModel.mul_add M a b c
-  right_distrib := by
-    intro a b c
-    rw [<- mul_comm]
-    rw [mul_add]
-    rw [mul_comm]
-    conv => lhs; rhs; rw [mul_comm]
 
 end IOPENModel

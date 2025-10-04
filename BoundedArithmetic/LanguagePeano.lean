@@ -1,5 +1,7 @@
 import Mathlib.ModelTheory.Order
 
+import BoundedArithmetic.Register
+
 universe u v
 
 namespace FirstOrder
@@ -34,26 +36,27 @@ def peano : Language :=
 namespace peano
 variable {a : Type u}
 
+@[delta0_simps]
 instance : Language.IsOrdered peano where
   leSymb := PeanoRel.leq
 
-@[simp] instance : Zero (peano.Term a) where
+@[delta0_simps] instance : Zero (peano.Term a) where
   zero := Constants.term .zero
 
-@[simp] instance : One (peano.Term a) where
+@[delta0_simps] instance : One (peano.Term a) where
   one := Constants.term .one
 
-@[simp] instance : Add (peano.Term a) where
+@[delta0_simps] instance : Add (peano.Term a) where
   add := Functions.apply₂ .add
 
-@[simp] instance : Mul (peano.Term a) where
+@[delta0_simps] instance : Mul (peano.Term a) where
   mul := Functions.apply₂ .mul
 
 
--- @[simp] instance : SMul ℕ (peano.Term a) where
+-- @[delta0_simps] instance : SMul ℕ (peano.Term a) where
 --   smul := nsmulRec
--- @[simp] theorem zero_nsmul {t : peano.Term a} : 0 • t = 0 := rfl
--- @[simp] theorem succ_nsmul {t : peano.Term a} {n : ℕ} : (n + 1) • t = n • t + t := rfl
+-- @[delta0_simps] theorem zero_nsmul {t : peano.Term a} : 0 • t = 0 := rfl
+-- @[delta0_simps] theorem succ_nsmul {t : peano.Term a} {n : ℕ} : (n + 1) • t = n • t + t := rfl
 
 -- instance : NatCast (peano.Term a) where
 --   natCast := Nat.unaryCast
@@ -67,25 +70,29 @@ instance : Language.IsOrdered peano where
 @[inherit_doc] scoped[FirstOrder.Language] infixl:89 " <' " => Term.lt
 
 /-- The not-equal relation of two terms as a bounded formula -/
+@[delta0_simps]
 def _root_.FirstOrder.Term.neq {a : Type u} {n} {L : Language} (t1 t2 : L.Term (a ⊕ (Fin n))) : L.BoundedFormula a n :=
   ∼(t1 =' t2)
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ≠' " => Term.neq
 
 
-section Semantics
-
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Zero M :=
   ⟨h.funMap PeanoFunc.zero ![]⟩
 
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : One M :=
   ⟨h.funMap PeanoFunc.one ![]⟩
 
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Add M :=
   ⟨fun x y => h.funMap PeanoFunc.add ![x, y]⟩
 
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Mul M :=
   ⟨fun x y => h.funMap PeanoFunc.mul ![x, y]⟩
 
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : LE M :=
   ⟨fun x y => h.RelMap PeanoRel.leq ![x, y]⟩
 
@@ -94,56 +101,8 @@ def natToM {M} [h : Language.peano.Structure M] : Nat -> M
 | 1 => 1
 | n + 1 => natToM n + 1
 
+@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] (n) : OfNat M n where
   ofNat := natToM n
 
-@[simp] lemma realize_zero_to_zero {M} [Language.peano.Structure M] {a} {env : a → M} :
-  Language.Term.realize env (0 : Language.peano.Term a) = (0 : M) := by
-  simp only [OfNat.ofNat, Zero.zero]
-  simp only [peano, Term.realize_constants, natToM, OfNat.ofNat, Zero.zero]
-  rfl
-
--- it is important to define OfNat 1 as 1, not (0+1), as the later needs an axiom to
--- be asserted equal to 1.
-@[simp] lemma realize_one_to_one {M} [peano.Structure M] {a} {env : a → M} :
-  Term.realize env (1 : peano.Term a) = (1 : M) := by
-  simp only [OfNat.ofNat, One.one]
-  simp only [peano, Term.realize_constants, natToM, OfNat.ofNat]
-  rfl
-
-@[simp] lemma realize_add_to_add {M} [h : peano.Structure M] {a} {env : a → M}
-    (t u : peano.Term a) :
-  Term.realize env (t + u) = Term.realize env t + Term.realize env u := by
-  simp only [peano, HAdd.hAdd, Add.add]
-  -- TODO: why the below doesn't work without @?
-  rw [@Term.realize_functions_apply₂]
-
-@[simp] lemma realize_mul_to_mul {M} [peano.Structure M] {a} {env : a → M}
-    (t u : peano.Term a) :
-  Term.realize env (t * u) = Term.realize env t * Term.realize env u := by
-  simp only [HMul.hMul, Mul.mul]
-  rw [@Term.realize_functions_apply₂]
-
-@[simp] lemma realize_leq_to_leq {M} [h : peano.Structure M] {a} {env : a → M}
-    {k} (t u : peano.Term (a ⊕ (Fin k))) {xs} :
-  (t.le u).Realize env xs = (t.realize (Sum.elim env xs) <= u.realize (Sum.elim env xs)) := by
-  simp only [LE.le, Term.le, Relations.boundedFormula₂]
-  rw [← @BoundedFormula.realize_rel₂]
-  unfold Relations.boundedFormula₂
-  rfl
-
-@[simp] lemma realize_leq_to_leq' {M} [h : peano.Structure M] {a} {env : a → M}
-    {k} (t u : peano.Term (a ⊕ (Fin k))) {xs} :
-  (BoundedFormula.rel PeanoRel.leq ![t, u]).Realize env xs = (t.realize (Sum.elim env xs) <= u.realize (Sum.elim env xs)) := by
-  simp only [LE.le]
-  rw [← @BoundedFormula.realize_rel₂]
-  unfold Relations.boundedFormula₂ Relations.boundedFormula
-  rfl
-
-@[simp] lemma realize_leq_to_leq'' {M} [h : peano.Structure M] {a} {env : a → M}
-    {k} (t u : peano.Term (a ⊕ (Fin k))) {xs} :
-  h.RelMap PeanoRel.leq ![t.realize (Sum.elim env xs), u.realize (Sum.elim env xs)] <-> (t.realize (Sum.elim env xs) <= u.realize (Sum.elim env xs)) := by
-  exact Eq.to_iff rfl
-
-end Semantics
 end FirstOrder.Language.peano

@@ -1,14 +1,11 @@
-public import Init.NotationExtra
-
 import Mathlib.ModelTheory.Syntax
 
 import BoundedArithmetic.IsEnum
-import BoundedArithmetic.IsEnumProperties
 
-universe u v w u' v'
 namespace FirstOrder
 namespace Language
 
+universe u
 variable {L : Language}
 variable {α β : Type u} {n : Nat}
 
@@ -20,7 +17,7 @@ Take the disjunction of a finite set of formulas.
 
 Note that this is an arbitrary formula defined using the axiom of choice. It is only well-defined up
 to equivalence of formulas. -/
-@[simp]
+-- @[simp]
 def iSup' [enum : IsEnum β] (f : β → L.BoundedFormula α n) : L.BoundedFormula α n :=
   (enum.toList.map f).foldr (· ⊔ ·) ⊥
 
@@ -30,7 +27,7 @@ Take the conjunction of a finite set of formulas.
 
 Note that this is an arbitrary formula defined using the axiom of choice. It is only well-defined up
 to equivalence of formulas. -/
-@[simp]
+-- @[simp]
 def iInf' [enum : IsEnum β] (f : β → L.BoundedFormula α n) : L.BoundedFormula α n :=
   (enum.toList.map f).foldr (· ⊓ ·) ⊤
 
@@ -41,19 +38,19 @@ namespace Formula
 /-- Computable version of: `iAlls f φ` transforms a `L.Formula (α ⊕ β)` into a `L.Formula α` by universally
 quantifying over all variables `Sum.inr _`.
 -/
-@[simp]
+-- @[simp]
 def iAlls' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
   (BoundedFormula.relabel (fun a => Sum.map id enum.toIdx a) φ).alls
 
 /-- Computable version of: `iExs f φ` transforms a `L.Formula (α ⊕ β)` into a `L.Formula α` by existentially
 quantifying over all variables `Sum.inr _`. -/
-@[simp]
+-- @[simp]
 def iExs' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
   (BoundedFormula.relabel (fun a => Sum.map id enum.toIdx a) φ).exs
 
 /-- Computable version of: `iExsUnique f φ` transforms a `L.Formula (α ⊕ β)` into a `L.Formula α` by existentially
 quantifying over all variables `Sum.inr _` and asserting that the solution should be unique -/
-@[simp]
+-- @[simp]
 def iExsUnique' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
   iExs' <| φ ⊓ iAlls'
     ((φ.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
@@ -66,7 +63,7 @@ Take the disjunction of finitely many formulas.
 
 Note that this is an arbitrary formula defined using the axiom of choice. It is only well-defined up
 to equivalence of formulas. -/
-@[simp]
+-- @[simp]
 def iSup' [enum : IsEnum α] (f : α → L.Formula β) : L.Formula β :=
   BoundedFormula.iSup' f
 
@@ -76,7 +73,7 @@ Take the conjunction of finitely many formulas.
 
 Note that this is an arbitrary formula defined using the axiom of choice. It is only well-defined up
 to equivalence of formulas. -/
-@[simp]
+-- @[simp]
 def iInf' [enum : IsEnum α] (f : α → L.Formula β) : L.Formula β :=
   BoundedFormula.iInf' f
 

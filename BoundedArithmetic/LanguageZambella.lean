@@ -1,5 +1,6 @@
 import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Order
+import Mathlib.ModelTheory.LanguageMap
 
 import BoundedArithmetic.LanguagePeano
 
@@ -171,7 +172,7 @@ end Semantics
 
 /-- The membership relation of two terms as a bounded formula -/
 def _root_.FirstOrder.Term.in {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ (Fin n))) : zambella.BoundedFormula a n :=
-  Relations.boundedFormula₂ ZambellaRel.mem t1 t2
+  Relations.boundedFormula₂ ZambellaRel.mem t2 t1
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∈' " => Term.in
 
 /-- The not-mem relation of two terms as a bounded formula -/
@@ -180,5 +181,17 @@ def _root_.FirstOrder.Term.notin {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ 
 
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∉' " => Term.notin
 
+
+
+
+-- LHOM
+instance peanoToZambella : LHom peano zambella where
+  onFunction _ f := match f with
+    | PeanoFunc.zero => ZambellaFunc.zero
+    | PeanoFunc.one => ZambellaFunc.one
+    | PeanoFunc.add => ZambellaFunc.add
+    | PeanoFunc.mul => ZambellaFunc.mul
+  onRelation _ f := match f with
+    | PeanoRel.leq => ZambellaRel.leq
 
 end FirstOrder.Language.zambella
