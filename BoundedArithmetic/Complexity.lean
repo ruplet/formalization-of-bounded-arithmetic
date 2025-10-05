@@ -359,7 +359,7 @@ inductive BoundedFormula.IsSigma0B {a : Type} : {n : Nat} -> zambella.BoundedFor
   {n}
   (phi : zambella.Formula (a ⊕ (Vars1 n)))
   (t : zambella.Term (a ⊕ Fin 0))
-  : IsSigma0B $ iBdAll' t ((rel ZambellaRel.isnum ![var $ Sum.inl $ Sum.inr $ .fv1]) ⊓ phi)
+  : IsSigma0B $ iBdAllNum' t phi
 | bdAllLt
   {n}
   (phi : zambella.Formula (a ⊕ (Vars1 n)))
@@ -375,6 +375,96 @@ theorem relabelEquiv {a b} {g : a ≃ b} (phi : zambella.Formula a):
   (phi.relabelEquiv g).IsSigma0B <-> phi.IsSigma0B :=
 by
   sorry
+
+@[delta0_simps]
+nonrec theorem display1 {n1: FvName}
+  (phi : zambella.Formula (Vars1 n1))
+  :
+  phi.display1.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display1
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem display2 {n1 n2: FvName}
+  (phi : zambella.Formula (Vars2 n1 n2))
+  :
+  phi.display2.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display2
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem display3 {n1 n2 n3: FvName}
+  (phi : zambella.Formula (Vars3 n1 n2 n3))
+  :
+  phi.display3.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display3
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem display4 {n1 n2 n3 n4: FvName}
+  (phi : zambella.Formula (Vars4 n1 n2 n3 n4))
+  :
+  phi.display4.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display4
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem display_swapleft {n1 n2 n3 : FvName}
+  (phi : zambella.Formula (Vars1 n1 ⊕ Vars2 n2 n3))
+  :
+  phi.display_swapleft.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display_swapleft
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem display_swapleft' {n1 n2 n3 : FvName}
+  (phi : zambella.Formula (Vars1 n1 ⊕ Vars2 n2 n3))
+  :
+  phi.display_swapleft'.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold display_swapleft'
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem rotate_21 {n1 n2 : FvName}
+  (phi : zambella.Formula (Vars2 n1 n2))
+  :
+  phi.rotate_21.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold rotate_21
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem rotate_213 {n1 n2 n3 : FvName}
+  (phi : zambella.Formula (Vars3 n1 n2 n3))
+  :
+  phi.rotate_213.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold rotate_213
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem rotate_231 {n1 n2 n3 : FvName}
+  (phi : zambella.Formula (Vars3 n1 n2 n3))
+  :
+  phi.rotate_231.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold rotate_231
+  apply relabelEquiv
+
+@[delta0_simps]
+nonrec theorem flip {a b}
+  (phi : zambella.Formula (a ⊕ b))
+  :
+  phi.flip.IsSigma0B <-> phi.IsSigma0B :=
+by
+  unfold Formula.flip
+  apply relabelEquiv
 
 end Sigma0B
 

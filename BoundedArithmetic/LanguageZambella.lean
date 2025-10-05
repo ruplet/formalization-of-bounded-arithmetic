@@ -2,6 +2,7 @@ import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Order
 import Mathlib.ModelTheory.LanguageMap
 
+import BoundedArithmetic.DisplayedVariables
 import BoundedArithmetic.LanguagePeano
 
 universe u v
@@ -33,7 +34,7 @@ def zambella : Language :=
   Relations := ZambellaRel
 }
 
-namespace zambella
+section zambella
 variable {a : Type u}
 
 instance : Language.IsOrdered zambella where
@@ -86,9 +87,6 @@ instance {M} [h : zambella.Structure M] : Mul M :=
 
 instance {M} [h : zambella.Structure M] : LE M :=
   ⟨fun x y => h.RelMap ZambellaRel.leq ![x, y]⟩
-
-instance {M} [h : zambella.Structure M] : LT M where
-  lt x y := x <= y ∧ x ≠ y
 
 instance {M} [h : zambella.Structure M] : HasEmptySet M :=
   ⟨h.funMap ZambellaFunc.empty ![]⟩
@@ -170,17 +168,48 @@ where
 
 end Semantics
 
+def Term.IsNum (t : zambella.Term (a ⊕ Fin 0)) : zambella.Formula a :=
+  Relations.boundedFormula₁ ZambellaRel.isnum t
+
+def Term.IsStr (t : zambella.Term (a ⊕ Fin 0)) : zambella.Formula a :=
+  Relations.boundedFormula₁ ZambellaRel.isstr t
+
+nonrec def Formula.IsNum {n} (phi : zambella.Formula (Vars1 n)) :=
+  (var $ .inl .fv1).IsNum ⟹ phi
+
 /-- The membership relation of two terms as a bounded formula -/
 def _root_.FirstOrder.Term.in {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ (Fin n))) : zambella.BoundedFormula a n :=
   Relations.boundedFormula₂ ZambellaRel.mem t2 t1
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∈' " => Term.in
 
 /-- The not-mem relation of two terms as a bounded formula -/
+@[delta0_simps]
 def _root_.FirstOrder.Term.notin {a : Type u} {n} (t1 t2 : zambella.Term (a ⊕ (Fin n))) : zambella.BoundedFormula a n :=
   ∼(t1 ∈' t2)
 
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ∉' " => Term.notin
 
+
+class ZambellaModel.{u'} (num str : Type u')
+  extends
+    zambella.Structure (num ⊕ str),
+    Preorder (num ⊕ str),
+    OrderedStructure zambella (num ⊕ str)
+  where
+  ax_realize_isnum {a : Type} {t : zambella.Term (a ⊕ Fin 0)} {v : a -> (num ⊕ str)}:
+    t.IsNum.Realize v
+    <-> (t.realize (Sum.elim v Fin.elim0)).isLeft
+
+  ax_realize_isstr {a : Type} {v : a -> (num ⊕ str)} {t : zambella.Term (a ⊕ Fin 0)} :
+    t.IsStr.Realize v
+    <-> (t.realize (Sum.elim v Fin.elim0)).isRight
+
+  ax_realize_in {a : Type} {n}
+    {t1 t2 : zambella.Term (a ⊕ Fin n)}
+    {v : a -> (num ⊕ str)}
+    {xs : Fin n -> (num ⊕ str)}:
+    (Term.in t1 t2).Realize v xs
+    <-> (t1.realize (Sum.elim v xs)) ∈ (t2.realize (Sum.elim v xs))
 
 
 
@@ -194,4 +223,6 @@ instance peanoToZambella : LHom peano zambella where
   onRelation _ f := match f with
     | PeanoRel.leq => ZambellaRel.leq
 
-end FirstOrder.Language.zambella
+end zambella
+
+end FirstOrder.Language

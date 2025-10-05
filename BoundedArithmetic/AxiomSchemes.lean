@@ -63,7 +63,7 @@ macro_rules
     conv =>
       rhs; lhs
       rw [realize_iAlls'.Vars1]; ext
-      rw [realize_flip]
+      rw [Formula.realize_flip]
       rw [realize_display1]
       rw [Formula.realize_imp];
 
@@ -77,57 +77,6 @@ macro_rules
     unfold Formula.Realize
     simp only [delta0_simps]
   )
-
-
-
-def _root_.FirstOrder.Language.Formula.IsNum {n} (phi : zambella.Formula (Vars1 n)) :=
-  let tp : zambella.Formula (Vars1 n) :=
-    (Relations.boundedFormula₁
-      ZambellaRel.isnum
-      (var $ .inl .fv1)
-    )
-  tp ⟹ phi
-
-
--- open Lean Elab Tactic Meta
--- /-- Normalize the RHS of the induction sentence -/
--- syntax (name := normalizeIndRhs) "normalize_ind_rhs" (" at " ident)? : tactic
-
--- elab_rules : tactic
--- | `(tactic| normalize_ind_rhs at $h:ident) => do
---   evalTactic $ `(tactic|
---     -- normalize the `isOpen`, `isDelta0` etc. part
---     conv at $h =>
---       conv =>
---         lhs;
---         simp only [IsQF.relabelEquiv, IsOpen.display3, IsOpen.equal, IsQF.relabelEquiv.mp]
---       -- this has to work! the goal has to reduce to `True`.
---       rw [forall_const]
-
---       unfold Sentence.Realize mkInductionSentence
---       rw [Formula.realize_imp]
---       rw [Formula.realize_imp]
---       rhs; rhs;
---       unfold Formula.Realize
---       unfold iAlls' alls alls
---       rw [realize_all]; intro
---       rw [BoundedFormula.realize_relabel]
---       unfold Formula.flip
---       rw [BoundedFormula.realize_relabelEquiv]
---       unfold Formula.display1
---       -- here we unroll iAlls' over what `phi` came with!
---       rw [BoundedFormula.realize_relabelEquiv]
---       try unfold alls
---       try unfold alls
---       try unfold alls
---       try (rw [realize_all]; intro;)
---       try (rw [realize_all]; intro;)
---       try (rw [realize_all]; intro;)
---       rw [BoundedFormula.realize_relabel]
---       -- unfold alls
---       -- first | unfold display3 | unfold display2 | unfold display1
---       -- rw [BoundedFormula.realize_relabelEquiv]
---   )
 
 def _root_.FirstOrder.Language.BoundedFormula.toFormula' {L : Language} {a} (phi : L.BoundedFormula a 0) : L.Formula a := phi
 
@@ -153,12 +102,12 @@ def mkInductionSentenceTyped
 
 -- Definition V.I.2 (Comprehension Axiom); p. 96 PDF; release of Logical Foundations
 -- `X` cannot occur free in `phi(z)`, but `y` can
-def mkComprehensionSentence {n} {a} [IsEnum a] {name}
-  (phi: zambella.BoundedFormula (((Vars1 name) ⊕ (Vars1 .y)) ⊕ a) n)
+def mkComprehensionSentence {a} [IsEnum a] {name}
+  (phi: zambella.Formula (((Vars1 name) ⊕ (Vars1 .y)) ⊕ a))
   : zambella.Sentence :=
     -- now `y` is accessible and nothing else!
     let univ : zambella.Formula (Vars1 name ⊕ Vars1 FvName.y)
-      := phi.alls.iAlls'
+      := phi.iAlls'
 
     -- X(z) ↔ φ(z)
     let iff : zambella.Formula (Vars3 .y .z .X) :=
@@ -169,15 +118,68 @@ def mkComprehensionSentence {n} {a} [IsEnum a] {name}
       (display3 .z iff.rotate_213)
 
     let all_z : zambella.Formula (Vars2 .y .X) :=
-      iBdAllLt' y iff.flip
-
-    let X_type : zambella.Formula (Vars2 .y .X) :=
-      Relations.boundedFormula₁ ZambellaRel.isstr X
+      iBdAllNumLt' y iff.flip
 
     let X_def : zambella.Formula (Vars1 .X ⊕ Vars1 .y) :=
-      (display2 .X (X_type ⊓ all_z).rotate_21)
+      (display2 .X (X.IsStr ⊓ all_z).rotate_21)
 
-    let ex_X : zambella.Formula _ := iBdEx' y X_def.flip
+    let ex_X : zambella.Formula (Vars1 .y) := iExs' X_def.flip
+
+    let ex_X_typed : zambella.Formula (Vars1 .y) :=
+      ex_X.IsNum
 
     -- quantify over `y`, the length of str created
-    ex_X.mkInl.flip.iAlls'
+    ex_X_typed.mkInl.flip.iAlls'
+
+syntax (name := simp_comp) "simp_comp" " at " (ppSpace ident)? : tactic
+
+macro_rules
+| `(tactic| simp_comp at $h:ident) =>
+  `(tactic|
+  conv at $h =>
+    unfold Sentence.Realize mkComprehensionSentence
+    rw [realize_iAlls'.Vars1]; ext
+    rw [realize_flip]
+    rw [realize_mkInl]
+    unfold Formula.IsNum
+    rw [Formula.realize_imp]
+    conv =>
+      lhs
+      rw [Term.realize_isnum]
+      lhs; arg 1
+      simp only [delta0_simps]
+    rhs
+    rw [realize_iExs'.Vars1]; right; ext
+    rw [realize_flip]
+    rw [realize_display2]
+    rw [realize_rotate_21]
+
+    rw [Formula.realize_inf]
+    conv =>
+      lhs
+      rw [Term.realize_isstr]
+      simp only [delta0_simps]
+    conv =>
+      rhs
+      rw [realize_iBdAllNumLt'.Vars1]; ext
+      conv =>
+        lhs
+        simp only [delta0_simps]
+      ext
+      ext
+      rw [realize_flip]
+      rw [realize_display3]
+      rw [realize_rotate_213]
+      rw [Formula.realize_iff]
+      conv =>
+        lhs
+        unfold Formula.Realize
+        simp only [delta0_simps]
+      rhs
+
+      unfold Formula.Realize
+      rw [realize_subst]
+      rw [Formula.boundedFormula_realize_eq_realize]
+      rw [realize_iAlls'.Vars1]; ext
+      simp only [delta0_simps]
+  )

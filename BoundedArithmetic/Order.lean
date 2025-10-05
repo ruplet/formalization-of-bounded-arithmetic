@@ -3,6 +3,7 @@ import Mathlib.ModelTheory.Order
 
 import BoundedArithmetic.DisplayedVariables
 import BoundedArithmetic.Syntax
+import BoundedArithmetic.LanguageZambella
 
 namespace FirstOrder.Language.Formula
 
@@ -28,6 +29,34 @@ variable {n r} (a b : L.BoundedFormula n r)
 def iBdAllLt' {α n} (bdTerm : L.Term (α ⊕ Fin 0)) (φ : L.Formula (α ⊕ (Vars1 n))) : L.Formula α :=
   let bd := (var (.inl (Sum.inr (.fv1)))).lt $ bdTerm.relabel (Sum.map .inl id)
   iAlls' $ bd ⟹ φ
+
+def iBdExNum'
+  {α n}
+  (bdTerm : zambella.Term (α ⊕ Fin 0))
+  (φ : zambella.Formula (α ⊕ (Vars1 n)))
+  : zambella.Formula α :=
+  iBdEx' bdTerm $ (var $ Sum.inl $ Sum.inr $ .fv1).IsNum ⊓ φ
+
+def iBdExStr'
+  {α n}
+  (bdTerm : zambella.Term (α ⊕ Fin 0))
+  (φ : zambella.Formula (α ⊕ (Vars1 n)))
+  : zambella.Formula α :=
+  iBdEx' bdTerm $ (var $ Sum.inl $ Sum.inr $ .fv1).IsStr ⊓ φ
+
+def iBdAllNum'
+  {α n}
+  (bdTerm : zambella.Term (α ⊕ Fin 0))
+  (φ : zambella.Formula (α ⊕ (Vars1 n)))
+  : zambella.Formula α :=
+  iBdAll' bdTerm $ (var $ Sum.inl $ Sum.inr $ .fv1).IsNum ⟹ φ
+
+def iBdAllNumLt'
+  {α n}
+  (bdTerm : zambella.Term (α ⊕ Fin 0))
+  (φ : zambella.Formula (α ⊕ (Vars1 n)))
+  : zambella.Formula α :=
+  iBdAllLt' bdTerm $ (var $ Sum.inl $ Sum.inr $ .fv1).IsNum ⟹ φ
 
 end IsOrdered
 

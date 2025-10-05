@@ -105,6 +105,9 @@ inductive Vars4 : FvName -> FvName -> FvName -> FvName -> Type
   from_to_id x := by
     cases x <;> rfl
 @[delta0_simps] lemma IsEnum.size.Vars4 {n1 n2 n3 n4} : IsEnum.size (Vars4 n1 n2 n3 n4) = 4 := rfl
+@[delta0_simps] lemma IsEnum.toIdx.Vars4 {n1 n2 n3 n4} {x : Vars4 n1 n2 n3 n4}
+  : IsEnum.toIdx x = match x with | .fv1 => 0 | .fv2 => 1 | .fv3 => 2 | .fv4 => 3
+  := rfl
 
 universe u
 variable {α : Type u} {L : FirstOrder.Language}
@@ -172,6 +175,85 @@ def FirstOrder.Language.Formula.display3
       intro v; cases v <;> simp only
   }
 
+def FirstOrder.Language.Formula.display4
+  (name : FvName)
+  {o1 o2 o3 : FvName}
+  (phi : L.Formula (Vars4 name o1 o2 o3))
+  : L.Formula (Vars1 name ⊕ Vars3 o1 o2 o3)
+:=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .fv1 => Sum.inl .fv1
+      | .fv2 => Sum.inr .fv1
+      | .fv3 => Sum.inr .fv2
+      | .fv4 => Sum.inr .fv3)
+    invFun := (fun fv => match fv with
+      | .inl _    => .fv1
+      | .inr .fv1 => .fv2
+      | .inr .fv2 => .fv3
+      | .inr .fv3 => .fv4)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse, Sum.forall, implies_true, true_and]
+      intro v; cases v <;> simp only
+  }
+
+def FirstOrder.Language.Formula.display_swapleft
+  {n1 n2 n3 : FvName}
+  (phi : L.Formula (Vars1 n1 ⊕ Vars2 n2 n3))
+  : L.Formula (Vars2 n1 n2 ⊕ Vars1 n3)
+:=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .inl .fv1 => .inl .fv1
+      | .inr .fv1 => .inl .fv2
+      | .inr .fv2 => .inr .fv1)
+    invFun := (fun fv => match fv with
+      | .inl .fv1 => .inl .fv1
+      | .inl .fv2 => .inr .fv1
+      | .inr .fv1 => .inr .fv2)
+    left_inv := by
+      intro v;
+      cases v with
+      | inl vl => simp only
+      | inr vr =>
+        cases vr <;> simp only
+    right_inv := by
+      intro v
+      cases v with
+      | inl vl =>
+        cases vl <;> simp only
+      | inr vr => simp only
+  }
+
+def FirstOrder.Language.Formula.display_swapleft'
+  {n1 n2 n3 : FvName}
+  (phi : L.Formula (Vars1 n1 ⊕ Vars2 n2 n3))
+  : L.Formula ((Vars1 n1 ⊕ Vars1 n2) ⊕ Vars1 n3)
+:=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .inl .fv1 => .inl $ .inl .fv1
+      | .inr .fv1 => .inl $ .inr .fv1
+      | .inr .fv2 => .inr .fv1)
+    invFun := (fun fv => match fv with
+      | .inl $ .inl .fv1 => .inl .fv1
+      | .inl $ .inr .fv1 => .inr .fv1
+      | .inr .fv1 => .inr .fv2)
+    left_inv := by
+      intro v;
+      cases v with
+      | inl vl => simp only
+      | inr vr =>
+        cases vr <;> simp only
+    right_inv := by
+      intro v
+      cases v with
+      | inl vl =>
+        cases vl <;> simp only
+      | inr vr => simp only
+  }
+
 -- Vars2 .x .y -> Vars2 .y .x
 def FirstOrder.Language.Formula.rotate_21
   {n1 n2 : FvName}
@@ -212,7 +294,36 @@ def FirstOrder.Language.Formula.rotate_213
       intro v; cases v <;> simp only
   }
 
+-- Vars3 .x .y .z -> Vars3 .y .x. .z
+def FirstOrder.Language.Formula.rotate_231
+  (n1 n2 n3 : FvName)
+  (phi : L.Formula (Vars3 n1 n2 n3))
+  : L.Formula (Vars3 n3 n1 n2)
+:=
+  phi.relabelEquiv {
+    toFun := (fun fv => match fv with
+      | .fv1 => .fv2
+      | .fv2 => .fv3
+      | .fv3 => .fv1)
+    invFun := (fun fv => match fv with
+      | .fv1 => .fv3
+      | .fv2 => .fv1
+      | .fv3 => .fv2)
+    left_inv := by intro v; cases v <;> simp only
+    right_inv := by
+      simp only [Function.RightInverse, Function.LeftInverse]
+      intro v; cases v <;> simp only
+  }
+
 variable {β}
+
+def FirstOrder.Language.BoundedFormula.flip {n} (phi : L.BoundedFormula (α ⊕ β) n) : L.BoundedFormula (β ⊕ α) n:=
+  phi.relabelEquiv {
+    toFun := Sum.swap (α := α) (β := β)
+    invFun := Sum.swap
+    left_inv := Sum.swap_leftInverse
+    right_inv := Sum.swap_rightInverse
+  }
 
 def FirstOrder.Language.Formula.flip (phi : L.Formula (α ⊕ β)) : L.Formula (β ⊕ α) :=
   phi.relabelEquiv {
