@@ -76,23 +76,18 @@ def _root_.FirstOrder.Term.neq {a : Type u} {n} {L : Language} (t1 t2 : L.Term (
 @[inherit_doc] scoped[FirstOrder.Language] infixl:88 " ≠' " => Term.neq
 
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Zero M :=
   ⟨h.funMap PeanoFunc.zero ![]⟩
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : One M :=
   ⟨h.funMap PeanoFunc.one ![]⟩
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Add M :=
   ⟨fun x y => h.funMap PeanoFunc.add ![x, y]⟩
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : Mul M :=
   ⟨fun x y => h.funMap PeanoFunc.mul ![x, y]⟩
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] : LE M :=
   ⟨fun x y => h.RelMap PeanoRel.leq ![x, y]⟩
 
@@ -101,7 +96,6 @@ def natToM {M} [h : Language.peano.Structure M] : Nat -> M
 | 1 => 1
 | n + 1 => natToM n + 1
 
-@[delta0_simps]
 instance {M} [h : Language.peano.Structure M] (n) : OfNat M n where
   ofNat := natToM n
 

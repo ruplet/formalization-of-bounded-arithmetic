@@ -13,7 +13,9 @@ class BASICModel (num : Type*) extends peano.Structure num where
   B4 : ∀ x y : num, x + (y + 1) = (x + y) + 1
   B5 : ∀ x   : num, x * 0 = 0
   B6 : ∀ x y : num, x * (y + 1) = x * y + x
+  -- le_antisymm
   B7 : ∀ x y : num, x <= y -> y <= x -> x = y
+  -- le_self_add
   B8 : ∀ x y : num, x <= x + y
 
 class BASICModelExt (num : Type*) extends BASICModel num where
@@ -43,7 +45,7 @@ instance (M : Type*) [BASICModel M] : LT M where
 
 namespace BASICModel
 universe u
-variable (M : Type u) [iopen : BASICModel M]
+variable {M : Type u} [iopen : BASICModel M]
 
 -- this is axctually O9. x ≤ x from Logical Foundations
 theorem le_refl : ∀ a : M, a <= a := by

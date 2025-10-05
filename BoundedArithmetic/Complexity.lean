@@ -319,19 +319,22 @@ by
   -- | ex => sorry
   | all => sorry
 
-
+@[delta0_simps]
 theorem display1 {n} (phi : peano.Formula (Vars1 n)) :
   phi.display1.IsDelta0 <-> phi.IsDelta0 :=
   IsDelta0.relabelEquiv phi
 
+@[delta0_simps]
 theorem display2 {n1 n2} (phi : peano.Formula (Vars2 n1 n2)) :
   phi.display2.IsDelta0 <-> phi.IsDelta0 :=
   IsDelta0.relabelEquiv phi
 
+@[delta0_simps]
 theorem display3 {n1 n2 n3} (phi : peano.Formula (Vars3 n1 n2 n3)) :
   phi.display3.IsDelta0 <-> phi.IsDelta0 :=
   IsDelta0.relabelEquiv phi
 
+@[delta0_simps]
 theorem flip {a b} (phi : peano.Formula (a ⊕ b)) :
   phi.flip.IsDelta0 <-> phi.IsDelta0 :=
   IsDelta0.relabelEquiv phi

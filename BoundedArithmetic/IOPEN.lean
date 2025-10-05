@@ -27,7 +27,7 @@ class IOPENModel (num : Type*) extends BASICModel num where
 namespace IOPENModel
 
 universe u v
-variable (M : Type u) [iopen : IOPENModel M]
+variable {M : Type u} [iopen : IOPENModel M]
 
 
 -- page 36 of draft (47 of pdf)
@@ -158,7 +158,7 @@ theorem mul_one
   : ∀ x : M, x * 1 = x :=
 by
   intro x
-  rw [<- zero_add M 1]
+  rw [<- zero_add 1]
   rw [B6]
   rw [B5]
   rw [add_comm]
@@ -259,7 +259,7 @@ example : Nonempty (True ∧ True) :=
 
 -- O6. x + z = y + z → x = y (Cancellation law for +)
 theorem add_cancel_right.mp
-  : ∀ x y z : M, x + z = y + z → x = y :=
+  : ∀ {x y z : M}, x + z = y + z → x = y :=
 by
   have ind := iopen.open_induction $ display3 .z
     (((x + z) =' (y + z) ⟹ (x =' y)) : Formula _ (Vars3 .z .x .y))
@@ -285,16 +285,16 @@ by
     exact h
 
 theorem add_cancel_right
-  : ∀ x y z : M, x + z = y + z <-> x = y :=
+  : ∀ {x y z : M}, x + z = y + z <-> x = y :=
 by
   intro x y z
   constructor
-  · exact add_cancel_right.mp M x y z
+  · exact add_cancel_right.mp
   · intro h
     rw [h]
 
 theorem add_cancel_left
-  : ∀ x y z : M, z + x = z + y <-> x = y :=
+  : ∀ {x y z : M}, z + x = z + y <-> x = y :=
 by
   intro x y z
   constructor
