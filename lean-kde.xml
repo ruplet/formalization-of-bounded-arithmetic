@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language name="Lean" version="1" kateversion="5.0"
+          section="Sources" extensions="*.lean"
+          mimetype="text/x-lean"
+          author="Converted from lstlean.tex (Jeremy Avigad et al.)"
+          license="MIT">
+  <highlighting>
+
+    <list name="keywords">
+      <item>import</item><item>prelude</item><item>protected</item><item>private</item><item>noncomputable</item>
+      <item>definition</item><item>meta</item><item>renaming</item><item>hiding</item>
+      <item>parameter</item><item>parameters</item><item>begin</item><item>constant</item><item>constants</item>
+      <item>lemma</item><item>variable</item><item>variables</item><item>theory</item>
+      <item>print</item><item>theorem</item><item>example</item>
+      <item>open</item><item>as</item><item>export</item><item>override</item><item>axiom</item><item>axioms</item>
+      <item>inductive</item><item>with</item><item>structure</item><item>record</item>
+      <item>universe</item><item>universes</item><item>alias</item><item>help</item><item>precedence</item>
+      <item>reserve</item><item>declare_trace</item><item>add_key_equivalence</item>
+      <item>match</item><item>infix</item><item>infixl</item><item>infixr</item>
+      <item>notation</item><item>postfix</item><item>prefix</item><item>instance</item>
+      <item>eval</item><item>reduce</item><item>check</item><item>end</item><item>this</item>
+      <item>using</item><item>using_well_founded</item><item>namespace</item><item>section</item>
+      <item>attribute</item><item>local</item><item>set_option</item><item>extends</item>
+      <item>include</item><item>omit</item><item>class</item><item>raw</item><item>replacing</item>
+      <item>calc</item><item>have</item><item>show</item><item>suffices</item><item>by</item><item>in</item><item>at</item>
+      <item>let</item><item>forall</item><item>Pi</item><item>fun</item><item>exists</item>
+      <item>if</item><item>dif</item><item>then</item><item>else</item><item>assume</item><item>obtain</item>
+      <item>from</item><item>register_simp_ext</item><item>unless</item><item>break</item><item>continue</item>
+      <item>mutual</item><item>do</item><item>def</item><item>run_cmd</item><item>const</item>
+      <item>partial</item><item>mut</item><item>where</item><item>macro</item><item>syntax</item><item>deriving</item>
+      <item>return</item><item>try</item><item>catch</item><item>for</item><item>macro_rules</item>
+      <item>declare_syntax_cat</item><item>abbrev</item>
+    </list>
+
+    <list name="sorts">
+      <item>Sort</item><item>Type</item><item>Prop</item>
+    </list>
+
+    <list name="tactics">
+      <item>assumption</item><item>apply</item><item>intro</item><item>intros</item><item>allGoals</item>
+      <item>generalize</item><item>clear</item><item>revert</item><item>done</item><item>exact</item>
+      <item>refine</item><item>repeat</item><item>cases</item><item>rewrite</item><item>rw</item>
+      <item>simp</item><item>simp_all</item><item>contradiction</item><item>constructor</item><item>injection</item>
+      <item>induction</item>
+    </list>
+
+    <contexts>
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <!-- comments -->
+        <Detect2Chars attribute="Comment" context="LineComment" char="-" char1="-" />
+        <Detect2Chars attribute="Comment" context="BlockComment" char="/" char1="-" beginRegion="BlockComment" />
+
+        <!-- strings -->
+        <DetectChar attribute="String" context="String" char="&quot;"/>
+
+        <!-- keywords -->
+        <keyword attribute="Keyword"  String="keywords"/>
+        <keyword attribute="DataType" String="sorts"/>
+        <keyword attribute="Keyword2" String="tactics"/>
+
+        <!-- unicode operators & symbols -->
+        <RegExpr attribute="Operator"
+                 String="[∧∨¬⊢∈∉∋∌∪∩⊂⊆⊄⊈⊃⊇⊅⊉≤≥≠≈≡≃↦←→↔⇒⇐ΣΠ∀∃λ⊗⊕⊞⊥∞∂∆∫∑∇√⋯…†ℕℤℝℚℂ⟨⟩⦃⦄‖↑↓×∘•·]"
+                 minimal="true"/>
+
+        <!-- Greek letters -->
+        <RegExpr attribute="Operator" String="[α-ωΑ-Ω]" minimal="true"/>
+
+        <!-- subscripts commonly used in Lean -->
+        <RegExpr attribute="Operator" String="[₀-₉ᵢⱼₐₙₘₚ]" minimal="true"/>
+
+        <!-- ASCII operators; angle brackets escaped -->
+        <RegExpr attribute="Operator"
+                 String="(==|=|:=|&lt;-|-&gt;|&lt;\$&gt;|&lt;\|&gt;|[\+\-\*/\\\|\&lt;\&gt;])"
+                 minimal="true"/>
+      </context>
+
+      <context name="LineComment" attribute="Comment" lineEndContext="#pop"/>
+
+      <!-- Nested block comments: /- ... -/ -->
+      <context name="BlockComment" attribute="Comment" lineEndContext="#stay">
+        <Detect2Chars attribute="Comment" context="BlockComment" char="/" char1="-" beginRegion="BlockComment"/>
+        <Detect2Chars attribute="Comment" context="#pop"          char="-" char1="/" endRegion="BlockComment"/>
+      </context>
+
+      <context name="String" attribute="String" lineEndContext="#pop">
+        <DetectChar attribute="String" context="#pop" char="&quot;"/>
+        <!-- optional: highlight escapes like \" \n \t \\ -->
+        <RegExpr attribute="StringEscape" String="\\."/>
+      </context>
+    </contexts>
+
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal"/>
+      <itemData name="Keyword"     defStyleNum="dsKeyword"/>
+      <itemData name="Keyword2"    defStyleNum="dsKeyword"/>
+      <itemData name="DataType"    defStyleNum="dsDataType"/>
+      <itemData name="Comment"     defStyleNum="dsComment"/>
+      <itemData name="String"      defStyleNum="dsString"/>
+      <itemData name="StringEscape" defStyleNum="dsSpecialChar"/>
+      <itemData name="Operator"    defStyleNum="dsOperator"/>
+    </itemDatas>
+  </highlighting>
+
+  <general>
+    <keywords casesensitive="1"/>
+  </general>
+</language>
+
