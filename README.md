@@ -41,11 +41,7 @@ induction axioms is very slow. It makes my VSCode laggy, my computer heat and, m
 ## Existing works
 ### Foundation project
 Most notably, there is an active project on formalizing logic in Lean 4, [`Foundations`](https://github.com/FormalizedFormalLogic/Foundation).
-Their design, however, doesn't enable to solve the crux problem I want to solve - for the
-theorems from arithmetic to be transferrable to the system. They reprove the theorems
-and do so not in style of the weak arithmetic, but completely in *the* Lean model,
-i.e. use theorems about natural numbers from the standard library of Lean etc.
-This was addressed in [my discussion with the developers](https://github.com/orgs/FormalizedFormalLogic/discussions/358).
+Their design, however, doesn't enable to solve the crux problem I want to solve - to extract useful computation from the proofs. They focus on mathematical theories, whereas my desired focus are two-sorted theories capturing complexity classes. `Foundations`' design doesn't align well with  Mathlib.ModelTheory`, and also doesn't foster convenient extraction of code from proofs. Initially I thought that some of their proofs are conducted in the Lean model only (due to using lemmas from Mathlib inside of the object-theory proofs), this is not the case however. That was addressed in [my discussion with the developers](https://github.com/orgs/FormalizedFormalLogic/discussions/358).
 
 ### Flypitch project
 In a brekathrough effort, contributors of the [Flypitch project](https://github.com/flypitch/flypitch) managed to formalize the proof of
