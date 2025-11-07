@@ -443,7 +443,7 @@ Proof.
 This really is a deduction system written from scratch.
 You have all the control over the axioms, but also there will be no more features
 than you implement on your own.
-![alt text](image.png)
+![alt text](image-rocq.png)
 
 # Circle back
 If we can do proofs so easily without axiom schemes, we really would like to not lose this functionality.
