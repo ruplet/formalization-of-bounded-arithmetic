@@ -561,7 +561,7 @@ This is the main interest of my master's thesis.
 
 <!-- qrencode -o github-qr.svg "https://github.com/ruplet/formalization-of-bounded-arithmetic" -t SVG -->
 [https://github.com/ruplet/formalization-of-bounded-arithmetic](https://github.com/ruplet/formalization-of-bounded-arithmetic)
-![QR code to the GitHub repo linked above](../github-qr.svg)
+![QR code to the GitHub repo linked above](github-qr.svg)
 
 This project has been supported by the ZSM IDUB program at the University of Warsaw
 
