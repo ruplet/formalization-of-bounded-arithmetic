@@ -25,11 +25,7 @@ theorem relabelEquiv.mpr {f : α ≃ β} (h : φ.IsAtomic)
 theorem relabelEquiv.mp {f : α ≃ β} (h : (φ.relabelEquiv f).IsAtomic)
   : φ.IsAtomic :=
 by
-  unfold relabelEquiv mapTermRelEquiv at h
-  simp at h
-  -- dependent eliminatoin failed ;(
-  -- cases h with
-  sorry
+  cases φ <;> (try cases h) <;> constructor
 
 @[delta0_simps]
 theorem relabelEquiv {f : α ≃ β} :
@@ -63,12 +59,12 @@ by
 
 end Formula.IsAtomic
 
-
 namespace BoundedFormula.IsQF
 
 @[delta0_simps]
 theorem imp.mpr {L : Language} {α} {m} {φ ψ : L.BoundedFormula α m} :
-    (φ.imp ψ).IsQF <-> (φ.IsQF ∧ ψ.IsQF) := by
+  (φ.imp ψ).IsQF <-> (φ.IsQF ∧ ψ.IsQF) :=
+by
   constructor
   · intro h
     constructor
@@ -82,25 +78,51 @@ theorem imp.mpr {L : Language} {α} {m} {φ ψ : L.BoundedFormula α m} :
     apply IsQF.imp h.left h.right
 
 @[delta0_simps]
-theorem relabelEquiv.mp {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : φ.IsQF) :
-  (φ.relabelEquiv f).IsQF := by
-  sorry
+theorem relabelEquiv.mp {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m}
+  (f : α ≃ β)
+  (h : φ.IsQF)
+  : (φ.relabelEquiv f).IsQF :=
+by
+  induction φ with
+  | falsum =>
+    constructor
+  | equal lhs rhs =>
+    simp only [relabelEquiv, mapTermRelEquiv, Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk,
+      mapTermRel, Term.relabelEquiv_apply]
+    constructor; constructor
+  | rel R ts =>
+    simp only [relabelEquiv, mapTermRelEquiv, Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk,
+      mapTermRel, Term.relabelEquiv_apply]
+    constructor; constructor
+  | imp pre post hind_pre hind_post =>
+    cases h with
+    | of_isAtomic hh => cases hh
+    | imp hpre hpost =>
+      rw [relabelEquiv.imp]
+      apply IsQF.imp
+      · exact hind_pre hpre
+      · exact hind_post hpost
+  | all f f_ih =>
+    cases h with
+    | of_isAtomic h' => cases h'
 
 @[delta0_simps]
-theorem relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) (h : (φ.relabelEquiv f).IsQF) :
-    φ.IsQF := by
-  sorry
+theorem relabelEquiv.mpr {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β)
+  (h : (φ.relabelEquiv f).IsQF)
+  : φ.IsQF :=
+by
+  have h' : relabelEquiv f.symm ((relabelEquiv f) φ) = φ := relabelEquiv.comp_inv f
+  rw [<- h']
+  apply relabelEquiv.mp
+  exact h
 
 @[delta0_simps]
 theorem relabelEquiv {L : Language} {α β} {m : ℕ} {φ : L.BoundedFormula α m} (f : α ≃ β) :
   (φ.relabelEquiv f).IsQF <-> φ.IsQF := ⟨IsQF.relabelEquiv.mpr f, IsQF.relabelEquiv.mp f⟩
 
--- @[delta0_simps]
--- theorem mapTermRel {α β} {m : ℕ} {φ : peano.BoundedFormula α 0} {g : Nat -> Nat}  (ft: forall n, peano.Term (α ⊕ (Fin n)) -> peano.Term (β ⊕ Fin (g n))) (fr) (h) :
---   (φ.mapTermRel ft fr h).IsQF <-> φ.IsQF := by
---   sorry
 
 end BoundedFormula.IsQF
+
 
 
 
@@ -151,22 +173,7 @@ by
 theorem relabelEquiv {f : α ≃ β}
   : (phi.relabelEquiv f).IsOpen <-> phi.IsOpen :=
 by
-  constructor <;> intro h
-  · -- dependent elimination failed on 'cases h' :(((
-    sorry
-  · induction h with
-    | falsum =>
-      rw [relabelEquiv.falsum]
-      exact IsQF.falsum
-    | of_isAtomic h =>
-      constructor
-      rw [IsAtomic.relabelEquiv]
-      exact h
-    | imp h1 h2 h1_ih h2_ih =>
-      rw [relabelEquiv.imp]
-      apply IsQF.imp
-      · exact h1_ih
-      · exact h2_ih
+  apply IsQF.relabelEquiv
 
 end BoundedFormula.IsOpen
 
@@ -201,15 +208,19 @@ open BoundedFormula Formula
 -- Definition 3.7, page 36 of draft (47 of pdf)
 -- + Definition 3.6, page 35 of draft (46 of pdf)
 -- fix level of `a` to 0, because level of `Vars` was fixed to 0!
-inductive BoundedFormula.IsDelta0 {a : Type}: {n : Nat} -> L.BoundedFormula a n -> Prop
-| imp {phi1 phi2} (h1 : IsDelta0 phi1) (h2 : IsDelta0 phi2)
-  : IsDelta0 (phi1.imp phi2)
-| bdEx {n} (phi : L.Formula (a ⊕ (Vars1 n))) (t : L.Term (a ⊕ Fin 0))
-  : IsDelta0 $ iBdEx' t phi
-| bdAll {n} (phi : L.Formula (a ⊕ (Vars1 n))) (t : L.Term (a ⊕ Fin 0))
-  : IsDelta0 $ iBdAll' t phi
-| of_isQF {phi} (h : BoundedFormula.IsQF phi)
-  : IsDelta0 phi
+inductive BoundedFormula.IsDelta0 : ∀ {a : Type} {n : Nat}, L.BoundedFormula a n -> Prop
+| bdEx {a n}
+  {phi : L.Formula (a ⊕ (Vars1 n))}
+  (t : L.Term (a ⊕ Fin 0))
+  : IsDelta0 phi -> (IsDelta0 $ iBdEx' t phi)
+| bdAll {a n}
+  {phi : L.Formula (a ⊕ (Vars1 n))}
+  (t : L.Term (a ⊕ Fin 0))
+  : IsDelta0 phi -> (IsDelta0 $ iBdAll' t phi)
+| imp {a n} {phi1 phi2 : L.BoundedFormula a n}
+  : IsDelta0 phi1 -> IsDelta0 phi2 -> IsDelta0 (phi1.imp phi2)
+| of_isQF {a n} {phi : L.BoundedFormula a n}
+  : BoundedFormula.IsQF phi -> IsDelta0 phi
 
 
 namespace IsDelta0
@@ -303,21 +314,71 @@ by
     · exact h
     · exact IsDelta0.bot
 
-@[delta0_simps]
-theorem relabelEquiv {a b} (phi : peano.Formula a) {g : a ≃ b}:
-  (phi.relabelEquiv g).IsDelta0 <-> BoundedFormula.IsDelta0 phi :=
+
+theorem relabelEquiv.gSumCongr
+  {a b c}
+  {phi : peano.Formula (a ⊕ c)}
+  (g : a ≃ b)
+  (h : phi.IsDelta0)
+  : ((relabelEquiv (g.sumCongr (_root_.Equiv.refl c))) phi).IsDelta0 :=
 by
-  cases phi with
-  | falsum =>
-    apply Iff.intro <;> (intro; constructor; constructor)
-  | equal =>
-    apply Iff.intro <;> (intro; constructor; constructor; constructor)
-  | imp p q =>
-    sorry
-  | rel =>
-    constructor <;> (intro; constructor; constructor; constructor)
-  -- | ex => sorry
-  | all => sorry
+  sorry
+
+
+@[delta0_simps]
+theorem relabelEquiv.mp {a b} {phi : peano.Formula a}
+  (g : a ≃ b)
+  (h : phi.IsDelta0)
+  : (phi.relabelEquiv g).IsDelta0 :=
+by
+  cases h with
+  | bdEx t hphi =>
+    rw [iBdEx'.relabelEquiv]
+    constructor
+    apply relabelEquiv.gSumCongr g
+    exact hphi
+  | bdAll t hphi =>
+    rw [iBdAll'.relabelEquiv]
+    constructor
+    apply relabelEquiv.gSumCongr
+    exact hphi
+  | imp pre post =>
+    rw [relabelEquiv.imp]
+    constructor
+    · apply relabelEquiv.mp
+      exact pre
+    · apply relabelEquiv.mp
+      exact post
+  | of_isQF f =>
+    cases f
+    · simp only [relabelEquiv.falsum]; constructor; constructor
+    · rename_i h2
+      cases h2
+      · simp only [relabelEquiv.eq]
+        constructor; constructor; unfold Term.bdEqual; apply IsAtomic.equal
+      · constructor; constructor; apply IsAtomic.rel
+    · simp only [relabelEquiv.imp]
+      constructor
+      · constructor
+        (expose_names; exact IsOpen.relabelEquiv.mpr h₁)
+      · refine IsDelta0.of_isQF ?_
+        (expose_names; exact IsOpen.relabelEquiv.mpr h₂)
+
+
+@[delta0_simps]
+theorem relabelEquiv.mpr {α β} {φ : peano.Formula α} (f : α ≃ β)
+  (h : (φ.relabelEquiv f).IsDelta0)
+  : φ.IsDelta0 :=
+by
+  have h' : relabelEquiv f.symm ((relabelEquiv f) φ) = φ := relabelEquiv.comp_inv f
+  rw [<- h']
+  apply relabelEquiv.mp
+  exact h
+
+@[delta0_simps]
+theorem relabelEquiv {α β} (φ : peano.Formula α) {f : α ≃ β} :
+  (φ.relabelEquiv f).IsDelta0 <-> φ.IsDelta0 := ⟨IsDelta0.relabelEquiv.mpr f, IsDelta0.relabelEquiv.mp f⟩
+
 
 @[delta0_simps]
 theorem display1 {n} (phi : peano.Formula (Vars1 n)) :

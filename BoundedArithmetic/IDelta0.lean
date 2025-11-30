@@ -44,7 +44,7 @@ by
         rw [IsDelta0.of_open.not]
         constructor; constructor; constructor
         constructor; constructor
-      · constructor
+      · constructor; rw [IsDelta0.flip]; rw [IsDelta0.display2]; constructor; constructor; constructor
     · unfold Term.neq
       rw [IsOpen.not]
       constructor; constructor
@@ -92,6 +92,13 @@ by
   specialize ind (by
     rw [IsDelta0.display2]
     constructor
+    rw [IsDelta0.flip]
+    rw [IsDelta0.display3]
+    constructor
+    · constructor
+      · constructor; constructor; constructor
+      · constructor; constructor
+    · constructor; constructor; constructor
   )
   simp_induction at ind
 
