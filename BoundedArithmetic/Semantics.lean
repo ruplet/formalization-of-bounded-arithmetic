@@ -605,32 +605,32 @@ by
       rw [Term.realize_isnum]
       simp only [Term.realize_var, Sum.elim_inl, Sum.elim_inr]
 
-@[delta0_simps]
-lemma realize_iBdAllNumLt'.Vars1
-  {num str}
-  [inst1 : ZambellaModel num str]
-  (phi : zambella.Formula (a ⊕ Vars1 n1) )
-  {t : zambella.Term (a ⊕ Fin 0)}
-  {v : a -> (num ⊕ str)}
-  : (phi.iBdAllNumLt' t).Realize v
-    <->
-      ∀ x : (num ⊕ str),
-      x < (t.realize (Sum.elim v default))
-      -> x.isLeft
-      -> phi.Realize
-        (Sum.elim v (fun fv => match fv with | .fv1 => x))
-  :=
-by
-  unfold iBdAllNumLt'
-  rw [realize_iBdAllLt'.Vars1]
+-- @[delta0_simps]
+-- lemma realize_iBdAllNumLt'.Vars1
+--   {num str}
+--   [inst1 : ZambellaModel num str]
+--   (phi : zambella.Formula (a ⊕ Vars1 n1) )
+--   {t : zambella.Term (a ⊕ Fin 0)}
+--   {v : a -> (num ⊕ str)}
+--   : (phi.iBdAllNumLt' t).Realize v
+--     <->
+--       ∀ x : (num ⊕ str),
+--       x < (t.realize (Sum.elim v default))
+--       -> x.isLeft
+--       -> phi.Realize
+--         (Sum.elim v (fun fv => match fv with | .fv1 => x))
+--   :=
+-- by
+--   unfold iBdAllNumLt'
+--   rw [realize_iBdAllLt'.Vars1]
 
-  conv =>
-    lhs; ext; rhs;
-    rw [realize_imp]
-    conv =>
-      lhs
-      rw [Term.realize_isnum]
-      simp only [Term.realize_var, Sum.elim_inl, Sum.elim_inr]
+--   conv =>
+--     lhs; ext; rhs;
+--     rw [realize_imp]
+--     conv =>
+--       lhs
+--       rw [Term.realize_isnum]
+--       simp only [Term.realize_var, Sum.elim_inl, Sum.elim_inr]
 
 end IsOrdered
 

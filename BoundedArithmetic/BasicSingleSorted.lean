@@ -43,6 +43,14 @@ instance (M : Type*) [BASICModel M] : LE M where
 instance (M : Type*) [BASICModel M] : LT M where
   lt x y := x <= y ∧ x ≠ y
 
+
+def pair {M : Type*} [BASICModel M] (x y : M) := (x + y) * (x + y + 1) + (1 + 1) * y
+notation "⟨" i "," j "⟩" => pair i j
+
+def triple {M : Type*} [BASICModel M] (x y z : M) := pair (pair x y) z
+notation "⟨" i "," j "," k "⟩" => triple i j k
+
+
 namespace BASICModel
 universe u
 variable {M : Type u} [iopen : BASICModel M]

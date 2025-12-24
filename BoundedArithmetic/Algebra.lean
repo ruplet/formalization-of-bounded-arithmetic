@@ -150,6 +150,12 @@ noncomputable instance : LinearOrder M where
         -- BOTH AND RECURSE!
         exact Classical.propDecidable (a ≤ b)
 
+noncomputable instance : LinearOrderedCommMonoidWithZero M where
+  bot := 0
+  bot_le := zero_le
+  zero_le_one := by
+    rw [<- zero_add 1]
+    apply B8
 
 -- instance : IsStrictOrderedRing M where
 --   le_of_add_le_add_left := by
