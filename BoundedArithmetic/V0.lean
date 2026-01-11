@@ -1,735 +1,728 @@
--- This file demonstrates how we can encode the two-sorted logic used for V^0
--- in single-sorted logic modeled by Mathlib.ModelTheory
--- We use the idea described in section 4.5 Single-sorted logic interpretation
--- (Draft p.82 = p.93 of pdf) (draft: https://www.karlin.mff.cuni.cz/~krajicek/cook-nguyen.pdf)
--- import Init.Notation
 import Lean
 
 import Mathlib.ModelTheory.Basic
 import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Complexity
--- import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.SimpRw
 
-import BoundedArithmetic.DisplayedVariables
-import BoundedArithmetic.LanguageZambella
-import BoundedArithmetic.Complexity
-import BoundedArithmetic.AxiomSchemes
+import BoundedArithmetic.BasicSingleSorted
+import BoundedArithmetic.IOPEN
 import BoundedArithmetic.IDelta0
+import BoundedArithmetic.DisplayedVariables
+import BoundedArithmetic.Complexity
+import BoundedArithmetic.Algebra
+import BoundedArithmetic.AxiomSchemes
 import BoundedArithmetic.Register
 
 
--- Syntax for: ∀s X<7, φ X := ∀X:sort, str X -> (len X) < 7 -> φ X
-
--- `sort` has to be defined above the syntax macros!
--- otherwise, macros expand it to `sort†`
 open FirstOrder Language
 open HasTypes_is
 open HasEmptySet
 open HasLen
-universe u
-variable (num str : Type u)
--- to define Len, Empty etc., we require explicit typing rules
--- along with the object in question!
-def Nums := { x : (num ⊕ str) // x.isLeft }
-def Strs := { x : (num ⊕ str) // x.isRight }
-variable [instNumPeano : peano.Structure (Nums num str)]
-variable [instMem : Membership (Nums num str) (Strs num str)]
-variable [HasLen (Strs num str) (Nums num str)]
-variable [HasEmptySet (Strs num str)]
-instance : LT (Nums num str) where
-  lt x y := x <= y ∧ x ≠ y
 
 
-syntax "∃i " Lean.binderIdent ", " term : term
-macro_rules
-  | `(∃i $x:ident, $p) =>
-    `(∃ $x:ident : (Nums num str), $p)
-
-syntax "∃s " Lean.binderIdent ", " term : term
-macro_rules
-  | `(∃s $x:ident, $p) =>
-    `(∃ $x:ident : (Strs num str), $p)
-
-syntax "∀i " Lean.binderIdent ", " term : term
-macro_rules
-  | `(∀i $x:ident, $p) =>
-    `(∀ $x:ident : (Nums num str), $p)
-
-syntax "∀s " Lean.binderIdent ", " term : term
-macro_rules
-  | `(∀s $x:ident, $p) =>
-    `(∀ $x:ident : (Strs num str), $p)
-
-syntax "∃i " Lean.binderIdent binderPred ", " term : term
-macro_rules
-  | `(∃i $x:ident $pred:binderPred, $p) =>
-    `(∃i $x:ident, satisfies_binder_pred% $x $pred ∧ $p)
-
-syntax "∃s " Lean.binderIdent binderPred ", " term : term
-macro_rules
-  | `(∃s $x:ident $pred:binderPred, $p) =>
-    `(∃s $x:ident, satisfies_binder_pred% (len $x) $pred ∧ $p)
-
-syntax "∀i " Lean.binderIdent binderPred ", " term : term
-macro_rules
-  | `(∀i $x:ident $pred:binderPred, $p) =>
-    `(∀i $x:ident, satisfies_binder_pred% $x $pred → $p)
-
-syntax "∀s " Lean.binderIdent binderPred ", " term : term
-macro_rules
-  | `(∀s $x:ident $pred:binderPred, $p) =>
-    `(∀s $x:ident, satisfies_binder_pred% (len $x) $pred → $p)
-
--- /-- recursive cases (two or more variables): peel the head and recurse on the tail -/
--- -- THIS DOESNT WORK IDK
--- -- macro_rules
--- --   | `(∀i $x:ident $xs:ident, $p) =>
--- --     `(∀ $x:ident : sort, ($x).isLeft -> (∀i $xs*, $p))
--- --   | `(∃i $x:ident $xs:ident+, $p) =>
--- --     `(∃ $x:ident : sort, ($x).isLeft ∧ (∃i $xs*, $p))
--- --   | `(∀s $x:ident $xs:ident+, $p) =>
--- --     `(∀ $x:ident : sort, ($x).isRight -> (∀s $xs*, $p))
--- --   | `(∃s $x:ident $xs:ident+, $p) =>
--- --     `(∃ $x:ident : sort, ($x).isRight ∧ (∃s $xs*, $p))
-
-
--- TODO: we can have better syntax for `len x`, but it might require
--- hiding importing of the syntax from mathlib for lattice
--- @[inherit_doc abs]
--- macro:max atomic("|" noWs) a:term noWs "|" : term => `(abs $a)
--- #check |7|
--- instance : Abs (str sort) where
-
-
--- typing axioms; 4.5 Single-sorted logic interpretation (Draft p.83 / p.94 of pdf)
-class BASIC2Model extends ZambellaModel num str where
+-- page 129, CN10: Finite axiomatizability of V0
+class V0Model
+  (num : Type) (str : outParam Type)
+  extends
+  HasLen str num,
+  Membership num str,
+  IDelta0Model num
+where
   -- axiom for empty string; 4.4.1 Two-Sorted Free Variable Normal Form
-  -- E : len (empty : Strs num str).val = (0 : num ⊕ str)
-  E {X : Strs num str} (_ : X.val = empty) : len X = (0 : Nums num str)
-  B1 : ∀i x,       x + 1 ≠ 0
-  B2 : ∀i x, ∀i y, x + 1 = y + 1 -> x = y
-  B3 : ∀i x,       x + 0 = x
-  B4 : ∀i x, ∀i y, x + (y + 1) = (x + y) + 1
-  B5 : ∀i x,       x * 0 = 0
-  B6 : ∀i x, ∀i y, x * (y + 1) = (x * y) + x
-  B7 : ∀i x, ∀i y, x <= y -> y <= x -> x = y
-  B8 : ∀i x, ∀i y, x <= x + y
-  B9 : ∀i x,       0 <= x
-  B10: ∀i x, ∀i y, x <= y ∨ y <= x
-  B11: ∀i x, ∀i y, x <= y <-> x < (y + 1)
-  B12: ∀i x,       x ≠ 0 -> (∃i y, (y <= x ∧ (y + 1) = x))
-  L1 : ∀s X, ∀i y, y ∈ X -> (y <= (len X) ∧ y ≠ (len X))
-  L2 : ∀s X, ∀i y, (y + 1) = len X -> y ∈ X
+  -- E : len (empty : str) = (0 : num)
+  -- B1 : ∀ x : num,       x + 1 ≠ 0
+  -- B2 : ∀ x y : num, x + 1 = y + 1 -> x = y
+  -- B3 : ∀ x : num,       x + 0 = x
+  -- B4 : ∀ x y : num, x + (y + 1) = (x + y) + 1
+  -- B5 : ∀ x : num,       x * 0 = 0
+  -- B6 : ∀x y : num, x * (y + 1) = (x * y) + x
+  -- B7 : ∀x y : num, x <= y -> y <= x -> x = y
+  -- B8 : ∀x y : num, x <= x + y
+  B9 : ∀ x : num,       0 <= x
+  B10: ∀ x y : num, x <= y ∨ y <= x
+  B11: ∀ x y : num, x <= y <-> x < (y + 1)
+  B12: ∀ {x : num},       x ≠ 0 -> (∃ y : num, (y <= x ∧ (y + 1) = x))
+  L1 : ∀ {X : str}, ∀ {y : num}, y ∈ X -> (y <= (len X) ∧ y ≠ (len X))
+  L2 : ∀ {X : str}, ∀ {y : num}, (y + 1) = len X -> y ∈ X
 
-  SE : ∀s X, ∀s Y,
-    len X = len Y (β := Nums num str)
-    -> (∀i y, ((y < len X) -> y ∈ X <-> y ∈ Y))
+  SE : ∀ {X Y: str},
+    len X = (len Y : num)
+    -> (∀ y : num, ((y < len X) -> (y ∈ X <-> y ∈ Y)))
     -> X = Y
 
-namespace BASIC2Model
-variable [inst : BASIC2Model num str]
+  comp1 : ∀ b1 b2 : num, ∃ Y : str, (len Y ≤ ⟨b1, b2⟩ ∧ (∀ x1 < b1, ∀ x2 < b2,
+    ⟨x1, x2⟩ ∈ Y ↔ (x1 = x2)
+  ))
 
-instance : BASICModel (Nums num str) where
-  B1 := inst.B1
-  B2 := inst.B2
-  B3 := inst.B3
-  B4 := inst.B4
-  B5 := inst.B5
-  B6 := inst.B6
-  B7 := inst.B7
-  B8 := inst.B8
+  -- φ2(x1,x2,x3) ≡ x3 = x1
+  comp2 : ∀ b1 b2 b3 : num, ∃ Y : str, len Y ≤ ⟨b1, b2, b3⟩ ∧
+    ∀ x1 < b1, ∀ x2 < b2, ∀ x3 < b3,
+      ⟨x1, x2, x3⟩ ∈ Y ↔ (x3 = x1)
 
-end BASIC2Model
+  -- φ3(x1,x2,x3) ≡ x3 = x2
+  comp3 : ∀ b1 b2 b3 : num, ∃ Y : str, len Y ≤ ⟨b1, b2, b3⟩ ∧
+    ∀ x1 < b1, ∀ x2 < b2, ∀ x3 < b3,
+      ⟨x1, x2, x3⟩ ∈ Y ↔ (x3 = x2)
 
+  -- φ4[Q1,Q2](x1,x2) ≡ ∃y ≤ x1 (Q1(x1,y) ∧ Q2(y,x2))
+  comp4 : ∀ Q1 Q2 : str, ∀ b1 b2 : num, ∃ Y : str, len Y ≤ ⟨b1, b2⟩ ∧
+    ∀ x1 < b1, ∀ x2 < b2,
+      ⟨x1, x2⟩ ∈ Y ↔ (∃ y : num, y ≤ x1 ∧ (⟨x1, y⟩ ∈ Q1 ∧ ⟨y, x2⟩ ∈ Q2))
 
-class V0Model extends BASIC2Model num str where
-  -- TODO: we can allow some more free vars here, but carefully?
-  sigma0B_comp {n1} {a : Type} [IsEnum a]
-    (phi : zambella.Formula (((Vars1 n1) ⊕ (Vars1 .y)) ⊕ a)) :
-    phi.IsSigma0B -> (mkComprehensionSentence phi).Realize (num ⊕ str)
+  -- φ5[a](x,y) ≡ y = a
+  comp5 : ∀ a : num, ∀ b1 b2 : num, ∃ Y : str, len Y ≤ ⟨b1, b2⟩ ∧
+    ∀ x < b1, ∀ y < b2,
+      ⟨x, y⟩ ∈ Y ↔ (y = a)
 
-namespace V0Model
--- TODO: UNIVERSE POLYMORPHISM!
-variable [inst : V0Model num str]
+  -- φ6[Q1,Q2](x,y) ≡ ∃z1 ≤ y ∃z2 ≤ y (Q1(x,z1) ∧ Q2(x,z2) ∧ y = z1 + z2)
+  comp6 : ∀ Q1 Q2 : str, ∀ b1 b2 : num, ∃ Y : str, len Y ≤ ⟨b1, b2⟩ ∧
+    ∀ x < b1, ∀ y < b2,
+      ⟨x, y⟩ ∈ Y ↔
+        (∃ z1 : num, z1 ≤ y ∧
+         ∃ z2 : num, z2 ≤ y ∧
+           (⟨x, z1⟩ ∈ Q1 ∧ ⟨x, z2⟩ ∈ Q2 ∧ y = z1 + z2))
 
-open BoundedFormula Formula
-open BASIC2Model
+  -- φ7[Q1,Q2](x,y) ≡ ∃z1 ≤ y ∃z2 ≤ y (Q1(x,z1) ∧ Q2(x,z2) ∧ y = z1 · z2)
+  comp7 : ∀ Q1 Q2 : str, ∀ b1 b2 : num, ∃ Y : str, len Y ≤ ⟨b1, b2⟩ ∧
+    ∀ x < b1, ∀ y < b2,
+      ⟨x, y⟩ ∈ Y ↔
+        (∃ z1 : num, z1 ≤ y ∧
+         ∃ z2 : num, z2 ≤ y ∧
+           (⟨x, z1⟩ ∈ Q1 ∧ ⟨x, z2⟩ ∈ Q2 ∧ y = z1 * z2))
 
-omit [HasEmptySet (Strs num str)] in
--- Exercise V.1.1 (a) ¬ x < 0
-lemma not_lt_zero : ∀i x, ¬ x < 0 := by
-  intro x h
-  obtain ⟨h_x_le, h_x_ne⟩ := h
-  apply h_x_ne
-  apply B7
-  · exact h_x_le
-  · apply B9
+  -- φ8[Q1,Q2,c](x) ≡ ∃y1 ≤ c ∃y2 ≤ c (Q1(x,y1) ∧ Q2(x,y2) ∧ y1 ≤ y2)
+  comp8 : ∀ Q1 Q2 : str, ∀ c b : num, ∃ Y : str, len Y ≤ b ∧
+    ∀ x < b,
+      x ∈ Y ↔
+        (∃ y1 : num, y1 ≤ c ∧
+         ∃ y2 : num, y2 ≤ c ∧
+           (⟨x, y1⟩ ∈ Q1 ∧ ⟨x, y2⟩ ∈ Q2 ∧ y1 ≤ y2))
 
-open ZambellaModel
+  -- φ9[X,Q,c](x) ≡ ∃y ≤ c (Q(x,y) ∧ X(y))
+  comp9 : ∀ X Q : str, ∀ c b : num, ∃ Y : str, len Y ≤ b ∧
+    ∀ x < b,
+      x ∈ Y ↔ (∃ y : num, y ≤ c ∧ (⟨x, y⟩ ∈ Q ∧ y ∈ X))
 
--- Lemma 5.6 (draft, p. 87 / 98 of pdf); V⁰ ⊢ X-MIN
-theorem X_MIN : ∀s X > (0 : Nums num str), ∃i x <  len X, x ∈ X ∧ (∀i y < x, ¬ y ∈ X) := by
-  -- by Sigma0B-COMP, there is a set Y such that |Y| <= |X| and for all z < |X|,
-  -- Y(z) <-> $ Forall x <= z, not X(x)
-  -- in the below formulas, `y` has special meaning.
-  -- `y` is the length of the ultimate string created
+  -- φ10[Q](x) ≡ ¬Q(x)
+  comp10 : ∀ Q : str, ∀ b : num, ∃ Y : str, len Y ≤ b ∧
+    ∀ x < b,
+      x ∈ Y ↔ ¬ (x ∈ Q)
 
-  -- Forall x <= z, x ∉ X
-  -- this `X` here is the set from theorem statement, not the `X` created
-  -- in the comprehension axiom's internal scope!
-  let form1 : zambella.Formula (Vars3 .y .z .X ⊕ Vars1 .x) :=
-    (display4 .x (x ∉' X)).flip
-  let form2 : zambella.Formula (Vars3 .y .z .X) :=
-    Formula.iBdAllNum' z form1
-  let form3 : zambella.Formula (Vars1 .z ⊕ Vars2 .y .X) :=
-    (display3 .z form2.rotate_213)
-  let form4 : zambella.Formula ((Vars1 .z ⊕ Vars1 .y) ⊕ Vars1 .X) :=
-    form3.display_swapleft'
-  let hcomp := inst.sigma0B_comp form4
+  -- φ11[Q1,Q2](x) ≡ Q1(x) ∧ Q2(x)
+  comp11 : ∀ Q1 Q2 : str, ∀ b : num, ∃ Y : str, len Y ≤ b ∧
+    ∀ x < b,
+      x ∈ Y ↔ (x ∈ Q1 ∧ x ∈ Q2)
 
-  unfold form4 form3 form2 form1 at hcomp
-  specialize hcomp (by
-    simp only [z, instHasVarVars3_1, x, instHasVarVars4, X, instHasVarVars4_3,
-      Sigma0B.display_swapleft', Sigma0B.display3, Sigma0B.rotate_213]
-    apply IsSigma0B.bdAll
-  )
+  -- φ12[Q,c](x) ≡ ∀y ≤ c Q(x,y)
+  comp12 : ∀ Q : str, ∀ c b : num, ∃ Y : str, len Y ≤ b ∧
+    ∀ x < b,
+      x ∈ Y ↔ (∀ y : num, y ≤ c → ⟨x, y⟩ ∈ Q)
 
-  simp_comp at hcomp
-
-  intro X X_gt
-  -- now, the Y we obtain is exactly the Y from the proof!
-  let lenX : Nums num str := len X
-  -- set length of string created in comprehension to |X|
-  specialize hcomp lenX.val
-  sorry
-#exit
-
-  -- now destruct Y and strengthen its type from `num ⊕ str` to `Strs num str`
-  obtain ⟨Y', h_Y'_le, h_Y'_type, h_Y'_def⟩ := h_comp
-  let h_Y'_type' : Y'.isRight := typeStrLift Y' h_Y'_type
-  let Y : Strs num str := ⟨Y', h_Y'_type'⟩
-  let h_Y_Y' : Y.val = Y' := by unfold Y; simp only
-
-  -- [...] Thus the set Y consists of the numbers smaller than every element in X.
-  -- Assuming 0 < |X| [`X_gt`], we will show that |Y| is the least member of X.
-  -- Intuitively, this is because |Y| is the least number that is larger than
-  -- any member of Y. Formally, we need to show:
-  -- (i) X(|Y|)
-  -- (ii) ∀ y < |Y|, ¬X(y)
-  -- Details are as follows.
-  have h_i_iint : (len Y) ∈ X ∧ (∀i t < len Y, t ∉ X) := by
-  -- First, suppose that Y is empty.
-    by_cases h_Y_empty : Y.val = empty
-    · -- Then |Y| = 0 by B12 and L2
-      rw [E h_Y_empty]
-      constructor; swap
-      -- hence (ii) holds vacuously by Exercise V.1.1 (a).
-      · intro t h
-        exfalso
-        apply not_lt_zero (inst := inst)
-        exact h
-      -- also, X(0) holds, since otherwise Y(0) holds by B7 and B9.
-      -- thus we have proved (i)
-      · by_contra h_0_not_mem_X
-        have zero_in_Y : 0 ∈ Y.val := by
-          specialize h_Y'_def 0 (by
-            sorry
-          )
-          -- have h_Y_def' := (Iff.mpr h_Y_def)
-          -- problem 1: from comp we get 0 ∈ Y†, but we need 0 ∈ Y!!!!
-          rw [h_Y_Y']
-          -- TODO: WHY DOES THE BELOW UNFOLD FINISH PROOF???
-          -- unfold Membership.mem instMembershipOfStructure.1
-          sorry
-          -- apply h_Y'_def.mpr
-        have zero_lt_len_Y : (0 : Nums num str) < len Y := by
-          apply L1
-          sorry
-        obtain ⟨_, zero_ne_len_Y⟩ := zero_lt_len_Y
-        apply zero_ne_len_Y
-        rw [E]
-        exact h_Y_empty
-    -- Now suppose that Y is not empty,
-    · -- i.e. Y(y) holds for some y.
-      have h_ex_y : ∃y, y ∈ Y := by
-        sorry
-      obtain ⟨y, hy⟩ := h_ex_y
-      -- Then y < |Y| by L1, and thus |Y| ≠ 0 by Exercise V.1.1 (a).
-      have lenY_ne_zero : len Y ≠ (0 : Nums num str) := by
-        sorry
-
-      -- By B12, |Y| = z + 1 for some z
-      obtain ⟨pred_lenY, h_pred_lenY_le, h_pred_lenY_eq⟩ := B12 (len Y) lenY_ne_zero
-      -- and hence `Y(z) ∧ ¬Y(z + 1)` by L1 and L2.
-      have z_in_Y := L2 Y pred_lenY h_pred_lenY_eq
-      have succ_z_notin_Y : (pred_lenY + 1) ∉ Y := by
-        sorry
-
-      -- Hence by (50) [i.e. Y_def] we have ∀y ≤ z, ¬X(y)
-      have lt_z_then_notin_X : ∀y ≤ pred_lenY, y ∉ X := by
-        sorry
-
-      -- ... ∧ ∃i ≤ (z + 1), X(i).
-      -- It follows that `i = z + 1` in the second conjunct,
-      -- since if `i < z + 1` then `i ≤ z` by B11,
-      -- which contradicts the first conjunct
-
-      -- This establishes (i) and (ii), since `i = z + 1 = |Y|`.
-      constructor
-      · sorry
-      · rw [<- h_pred_lenY_eq]
-        conv => right; lhs; rw [<- B11]
-        exact lt_z_then_notin_X
-
-  -- now, finish the proof!
-  have ⟨h_len_Y_mem_X, h_len_Y_is_min⟩ := h_i_iint
-
-  exists (len Y)
-  constructor
-  · apply L1 X (len Y) h_len_Y_mem_X
-  · constructor
-    · apply h_len_Y_mem_X
-    · apply h_len_Y_is_min
+variable {num str} [M : V0Model.{0, 0} num str]
+open V0Model
 
 
-
-
--- Corollary V.1.7. V⁰ ⊢ X-IND
--- TODO: TO EXTRACT CODE FROM V⁰,
---       WE CAN'T DO THIS PROOF BY CONTRADICTION!!!!
-theorem X_IND :
-  ∀i z, ∀s X_,
-  0 ∈ X_
-  -> (∀i y < z, (y ∈ X_ -> (y + 1) ∈ X_))
-  -> z ∈ X_ := by
-  -- We prove by contradiction. Assume ¬X-IND,
-  -- then we have for some `z`, ...
-  intro z_ X_ h_base h_step
-  by_contra h_z_notin_X
-
-  -- By comp, there is a set Y with |Y| ≤ z + 1 such that
-  -- ∀y < (z + 1), (y ∈ Y ↔ y ∉ X)
-  let formula : zambella.Formula (Vars1X ⊕ Vars2yz) :=
-    (display_X_yzX $ z ∉' X)
-  let h_comp := inst.sigma0B_comp formula (disp := Vars1X) (by
-    sorry
-  )
-
-  conv at h_comp =>
-    unfold formula Sentence.Realize Formula.Realize mkComprehensionSentence
-    unfold iAlls' alls alls
-    simp only [realize_all]
-    intro;
-    simp only [BoundedFormula.realize_relabel]
-    unfold Formula.flip
-    simp only [BoundedFormula.realize_relabelEquiv]
-    unfold mkInl
-    simp only [BoundedFormula.realize_relabelEquiv]
-    unfold iBdEx' iExs' exs exs
-    simp only [realize_ex]; right; intro
-    simp only [BoundedFormula.realize_relabel]
-    simp only [BoundedFormula.realize_inf]
-    conv =>
-      left
-      simp only [y, HasVar_y.y, Term.relabel.eq_1, Sum.map_inl, IsEnum.size.Vars1X,
-        IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero,
-        Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, Term.realize_le, Term.realize_var,
-        Sum.elim_inl, Function.comp_apply, Sum.map_inr, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero,
-        lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq, id_eq, Sum.swap_inl,
-        IsEnum.toIdx.Vars1y_y, Fin.isValue]
-    conv =>
-      right
-      simp only [BoundedFormula.realize_relabelEquiv]
-      unfold display_X_yX
-      simp only [BoundedFormula.realize_relabelEquiv]
-      unfold iBdAllLt'
-      unfold iAlls' alls alls
-      simp only [BoundedFormula.realize_inf]
-      conv =>
-        left
-        simp only [X, instHasVar_XVars2yX, IsEnum.size.Vars1X, IsEnum.size.Vars1y, Nat.add_zero,
-          Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
-          Equiv.coe_fn_mk, BoundedFormula.realize_rel₁, Term.realize_var, Sum.elim_inl,
-          Function.comp_apply, Sum.swap_inl, Sum.map_inr, IsEnum.toIdx.Vars1X, Fin.isValue,
-          Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
-          cast_eq]
-      conv =>
-        right
-        simp only [realize_all]; intro;
-        simp only [BoundedFormula.realize_relabel]
-        simp only [BoundedFormula.realize_imp]
-        conv =>
-          left
-          simp only [Term.lt, instHasDisplayedVars1z, y, instHasVar_yVars2yX, Term.relabel.eq_1,
-            Sum.map_inl, instHasDisplayedVars1z.eq_1, IsEnum.size.Vars1z, IsEnum.size.Vars1X,
-            IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero,
-            Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, BoundedFormula.realize_inf,
-            Term.realize_le, Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.map_inr,
-            IsEnum.toIdx.Vars1z_z, Fin.isValue, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero,
-            lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq, id_eq, Sum.swap_inr,
-            Sum.swap_inl, IsEnum.toIdx.Vars1y_y, BoundedFormula.realize_not]
-        conv =>
-          right
-          unfold display_z_yzX
-          simp only [BoundedFormula.realize_relabelEquiv]
-          simp only [BoundedFormula.realize_iff, Term.in]
-          conv =>
-            left
-            simp only [z, instHasVar_zVars3yzX, X, instHasVar_XVars3yzX, instHasDisplayedVars1z,
-              IsEnum.size.Vars1z, IsEnum.size.Vars1X, IsEnum.size.Vars1y, Nat.add_zero,
-              Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id,
-              Equiv.coe_fn_mk, BoundedFormula.realize_rel₂, Term.realize_var, Sum.elim_inl,
-              Function.comp_apply, Sum.swap_inl, Sum.map_inr, IsEnum.toIdx.Vars1z_z, Fin.isValue,
-              Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte,
-              Fin.reduceLast, cast_eq, Sum.swap_inr, Sum.map_inl, id_eq, IsEnum.toIdx.Vars1X]
-          conv =>
-            right
-            simp only [BoundedFormula.realize_subst]
-            unfold alls
-            simp only [BoundedFormula.realize_all]; intro; intro
-            simp only [BoundedFormula.realize_relabel]
-            unfold alls
-            unfold display_X_yzX
-            simp only [BoundedFormula.realize_relabelEquiv]
-            simp only [Term.notin, Term.in, z, instHasVar_zVars3yzX, X, instHasVar_XVars3yzX,
-              IsEnum.size.Vars2yz, instHasDisplayedVars1z, IsEnum.size.Vars1z, IsEnum.size.Vars1X,
-              IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one, Nat.reduceAdd,
-              Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, Term.realize_var,
-              Function.comp_apply, Sum.swap_inl, Sum.map_inr, IsEnum.toIdx.Vars1z_z, Fin.isValue,
-              Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte,
-              Fin.reduceLast, cast_eq, BoundedFormula.realize_not, BoundedFormula.realize_rel₂,
-              Sum.elim_inl, IsEnum.toIdx.Vars2yz_z, Fin.coe_ofNat_eq_mod, Nat.mod_succ, Sum.map_inl,
-              id_eq]
-
-  -- recall: By comp, there is a set Y with |Y| ≤ z + 1 such that
-  -- ∀y < (z + 1), (y ∈ Y ↔ y ∉ X)
-  specialize h_comp (z_ + (1 : Nums num str)).val
-  obtain ⟨Y', h_lenY'_le, h_Y'_type, h_Y'_def⟩ := h_comp
-  let h_Y'_type' : Y'.isRight := typeStrLift Y' h_Y'_type
-  let Y : Strs num str := ⟨Y', h_Y'_type'⟩
-  let h_Y_Y' : Y.val = Y' := by unfold Y; simp only
-
-  -- Then Y(z) holds by Exercise V.1.1 (b), ...
-  have h_z_in_Y : z_ ∈ Y := by sorry
-  -- ... so 0 < |Y| by (a) and L1.
-  have zero_lt_lenY : (0 : Nums num str) < len Y := by sorry
-
-  -- By Y-MIN, Y has a least element y₀.
-  obtain ⟨minY, h_minY_lt, h_minY_in, h_minY_def⟩ := X_MIN num str Y zero_lt_lenY
-
-  -- Then y₀ ≠ 0 because X(0), ...
-  have h_minY_ne_zero : minY ≠ (0 : Nums num str) := by sorry
-
-  -- ... hence y₀ = x₀ + 1 for some x₀, by B12.
-  obtain ⟨pred_minY, h_pred_minY_le, h_pred_minY_eq⟩ := B12 minY h_minY_ne_zero
-
-  -- But then we must have X(x₀) and ¬X(x₀ + 1),...
-  have h_pred_minY_in_X : pred_minY ∈ X_ := by sorry
-  have h_minY_notin_X : minY ∉ X_ := by sorry
-
-  -- ... which contradicts our assumption
-  -- specifically:
-  -- h_z_notin_X : z_ ∉ X_
-  -- h_step : ∀ y < z_, y ∈ X_ → y + 1 ∈ X_
-  specialize h_step pred_minY (by
-    -- prove that pred_minY < z_
-    -- h_lenY'\_le : Y' ≤ ↑(z_ + 1)
-    -- h_z_in_Y : z_ ∈ Y
-  sorry)
-  apply h_minY_notin_X
-  rw [<- h_pred_minY_eq]
-  apply h_step
-  exact h_pred_minY_in_X
-
-
--- open Mathlib Tactic
--- #check Mathlib.Tactic.tacticSimp_rw___
-
--- Corollary V.1.8 If V⁰ proves Φ-COMP, then V⁰ proves Φ-IND, MIN, MAX
--- we limit to Φ := Sigma B0
-theorem sigma0B_ind {disp} [HasDisplayed disp] {a} [IsEnum a]
-  (phi : zambella.Formula (disp ⊕ a)) :
-  phi.IsSigma0B
-  -> (mkInductionSentenceTyped phi).Realize (num ⊕ str) :=
+theorem xmin_comp (X : str) : ∃ Y : str, (len Y : num) ≤ len X ∧ ∀ z < len X, z ∈ Y ↔ ∀ y ≤ z, y ∉ X :=
 by
-  -- technicality: we can't simplify in this theorem,
-  -- as the size of `a` is unknown and trying to make induction on
-  -- the size or something is very difficult, as Lean can't
-  -- tell that in `motive`, the equality holds and detects some types
-  -- as unequal...
-  intro h_sigma0B
-  unfold mkInductionSentenceTyped
-  -- we prove `forall z, φ(z)`. here we intro `z`.
-  intro base step z
+  sorry
 
-  conv =>
-    rw [BoundedFormula.realize_relabel]
-    unfold Formula.flip
-    rw [BoundedFormula.realize_relabelEquiv]
-    unfold display
-    rw [BoundedFormula.realize_relabelEquiv]
-    unfold IsNum
-    unfold toFormula'
-    rw [BoundedFormula.realize_imp]
-    simp only [hasDispIsEnum.eq_1, Fin.isValue, Nat.add_zero, Nat.reduceAdd, Fin.castAdd_zero,
-      Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, BoundedFormula.realize_rel₁,
-      Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.swap_inl, Sum.map_inr, Sum.elim_inr,
-      Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq]
+lemma ex_elt_of_len_pos : ∀ {X : str}, (0 : num) < (len X) -> ∃ x, x ∈ X ∧ x + 1 = len X := by
+  intro X h_len
+  obtain ⟨len_pred, h_le, h_eq⟩ := M.B12 h_len.right.symm
+  exists len_pred
+  constructor
+  · apply L2
+    exact h_eq
+  · exact h_eq
 
-  intro h_z_type
+lemma lt_succ : ∀ (x : num), x < x + 1 := by
+  intro x
+  constructor
+  · apply M.B8
+  · intro h
+    conv at h => lhs; rw [<- add_zero x]
+    rw [add_left_cancel_iff] at h
+    apply M.B1 0
+    symm
+    rw [<- h]
+    rw [@right_eq_add]
 
-  -- lift type of z using embedded type information `htype`
-  let h_z_type' : z.isLeft := typeNumLift z h_z_type
-  let z' : Nums num str := ⟨z, h_z_type'⟩
-  let h_z_z' : z'.val = z := by unfold z'; simp only
+lemma len_not_in : ∀ {X : str}, len X ∉ X := by
+  intro X h
+  apply (L1 h).right
+  rfl
 
-  -- By Φ-COMP, there exists X such that |X| ≤ z + 1 and
-  -- ∀y < (z + 1), (X(y) ↔ φ(y))
-  let comp := inst.sigma0B_comp phi h_sigma0B
+-- Exercise V.1.1
+lemma not_lt_zero
+  : ∀ {x : num}, ¬ x < 0 :=
+by
+  intro x
+  rw [not_lt_iff_eq_or_lt]
+  exact eq_zero_or_pos x
 
-  conv at comp =>
-    simp only
-    unfold mkComprehensionSentence Sentence.Realize Formula.Realize
-    unfold iAlls' alls alls
-    rw [realize_all]
-    intro
-    rw [BoundedFormula.realize_relabel]
-    unfold Formula.flip
-    rw [BoundedFormula.realize_relabelEquiv]
-    unfold mkInl
-    rw [BoundedFormula.realize_relabelEquiv]
-    unfold iBdEx' iExs' exs exs
-    rw [BoundedFormula.realize_ex]
-    rhs; intro
-    rw [BoundedFormula.realize_relabel]
-    rw [BoundedFormula.realize_inf]
-    conv =>
-      left
-      simp only [y, instHasVar_yVars1y, Term.relabel.eq_1, Sum.map_inl, hasDispIsEnum.eq_1,
-        Fin.isValue, IsEnum.size.Vars1X, IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one,
-        Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk,
-        Term.realize_le, Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.map_inr,
-        Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
-        cast_eq, id_eq, Sum.swap_inl, IsEnum.toIdx.Vars1y_y]
-    conv =>
-      right
-      rw [BoundedFormula.realize_relabelEquiv]
-      unfold display_X_yX
-      rw [BoundedFormula.realize_relabelEquiv]
-      rw [BoundedFormula.realize_inf]
-      conv =>
-        left
-        simp only [X, instHasVar_XVars2yX, hasDispIsEnum.eq_1, Fin.isValue, IsEnum.size.Vars1X,
-          IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one, Nat.reduceAdd, Fin.castAdd_zero,
-          Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, BoundedFormula.realize_rel₁,
-          Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.swap_inl, Sum.map_inr,
-          Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
-          cast_eq]
+instance : CanonicallyOrderedAdd num where
+  le_self_add := by
+    intro a b
+    conv => lhs; rw [<- M.B3 a]
+    apply add_le_add
+    · apply le_refl
+    · apply M.B9
 
-      conv =>
-        right
-        unfold iBdAllLt' iAlls' alls alls
-        rw [BoundedFormula.realize_all]; intro
-        rw [BoundedFormula.realize_relabel]
-        rw [BoundedFormula.realize_imp]
-        conv =>
-          left
-          simp [delta0_simps]
-          unfold Term.lt
-          simp only [Fin.isValue, BoundedFormula.realize_inf, Term.realize_le, Term.realize_var,
-            Sum.elim_inl, Function.comp_apply, Sum.map_inr, Sum.elim_inr, Fin.snoc, Nat.reduceAdd,
-            Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast, cast_eq, Sum.map_inl,
-            id_eq, Sum.swap_inr, Sum.swap_inl, IsEnum.toIdx.Vars1y_y, BoundedFormula.realize_not]
-        conv =>
-          right
-          unfold display_z_yzX
-          rw [BoundedFormula.realize_relabelEquiv]
-          rw [BoundedFormula.realize_relabelEquiv]
-          rw [BoundedFormula.realize_iff]
-          conv =>
-            left
-            unfold Term.in
-            simp only [Language.z, instHasVar_zVars3yzX, X, instHasVar_XVars3yzX,
-              instHasDisplayedVars1z.eq_1, hasDispIsEnum.eq_1, Fin.isValue, IsEnum.size.Vars1z,
-              IsEnum.size.Vars1X, IsEnum.size.Vars1y, Nat.add_zero, Nat.succ_eq_add_one,
-              Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk,
-              BoundedFormula.realize_rel₂, Term.realize_var, Sum.elim_inl, Function.comp_apply,
-              Sum.swap_inl, Sum.map_inr, Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false,
-              ↓reduceDIte, Fin.reduceLast, cast_eq, Sum.swap_inr, Sum.map_inl, id_eq]
-          conv =>
-            right
-            simp only [Nat.add_zero, instHasDisplayedVars1z.eq_1, hasDispIsEnum.eq_1, Fin.isValue,
-              IsEnum.size.Vars1z, IsEnum.size.Vars1X, IsEnum.size.Vars1y, Nat.succ_eq_add_one,
-              Nat.reduceAdd, Fin.castAdd_zero, Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk,
-              realize_subst, Term.realize_var, Function.comp_apply, Sum.swap_inl, Sum.map_inr,
-              Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte,
-              Fin.reduceLast, cast_eq]
+theorem xmin :
+  ∀ {X : str}, (0 : num) < len X -> ∃ x < len X, x ∈ X ∧ ∀ y < x, y ∉ X :=
+by
+  intro X h_lenX
+  obtain ⟨Y, h_Y⟩ := xmin_comp X (num := num)
+  exists (len Y)
+  by_cases h : (0 : num) < len Y
+  · obtain ⟨y, hy_in, hy_eq⟩ := ex_elt_of_len_pos h
+    constructor
+    · -- len Y < len X
+      cases le_iff_eq_or_lt.mp h_Y.left with
+      | inl h_lenY_eq_lenX =>
+        exfalso
+        have h_X_empty : ∀ x < len X, x ∉ X := by
+          have aux := h_Y.right y
+          rw [<- h_lenY_eq_lenX] at aux
+          specialize aux (L1 hy_in)
+          intro x h_x_lt
+          apply aux.mp hy_in
+          rw [B11, hy_eq]
+          rw [h_lenY_eq_lenX]
+          exact h_x_lt
 
-  -- recall: By Φ-COMP, there exists X such that |X| ≤ z + 1 and
-  -- ∀y < (z + 1), (X(y) ↔ φ(y))
-  specialize comp z -- should be `z` and not `(z + 1)` i think
-  obtain ⟨X, h_X_le, h_X_type, h_X_def⟩ := comp
-  -- lift type of `X` using embedded type information `htype`
-  let h_X_type' : X.isRight := typeStrLift X h_X_type
-  let X' : Strs num str := ⟨X, h_X_type'⟩
-  let h_X_X' : X'.val = X := by unfold X'; simp only
+        have h_X_empty' : ¬∃ x < len X, x ∈ X := by
+          refine not_exists_of_forall_not ?_
+          intro x hx
+          apply h_X_empty x hx.left hx.right
 
-  -- By B11, Exercise V.1.1 (c,e) and (51) [`base ∧ step`] we conclude from this
-  have base_X : 0 ∈ X := by
-    specialize h_X_def 0 (by
-      -- 0 <= z ∧ ¬ z <= 0
+        apply h_X_empty'
+        obtain ⟨wit, h_wit⟩ := ex_elt_of_len_pos (X := X) (by
+          rw [h_lenY_eq_lenX] at h
+          exact h
+        )
+
+        exists wit
+        constructor
+        apply L1 h_wit.left
+        exact h_wit.left
+      | inr h_lenY_lt_lenX =>
+        assumption
+    · constructor
+      · -- len Y ∈ X
+        rw [le_iff_eq_or_lt] at h_Y
+        cases h_Y.left with
+        | inl h =>
+          exfalso
+          rw [<- h] at h_lenX
+          conv at h_Y => right; rw [<- h]
+          have aux := (h_Y.right y (M.L1 hy_in)).mp hy_in y (le_refl _)
+          apply aux
+          apply L2
+          rw [<- h]
+          exact hy_eq
+        | inr h =>
+          have aux := (not_congr $ h_Y.right (len Y) h).mp len_not_in
+          simp only [not_forall, not_not] at aux
+          obtain ⟨x, h_x_le, h_x_X⟩ := aux
+          rw [le_iff_eq_or_lt] at h_x_le
+          cases h_x_le with
+          | inl h =>
+            rw [<- h]
+            exact h_x_X
+          | inr h =>
+            -- first, obtain hypothesis for last y of Y
+            have len_Y_ne_zero : (len Y : num) ≠ 0 := by
+              intro h'
+              rw [h'] at h
+              apply not_lt_zero h
+            have len_Y_pos : 0 < (len Y : num) := by
+              cases (eq_zero_or_pos (len Y : num)) with
+              | inl h =>
+                exfalso
+                apply len_Y_ne_zero
+                exact h
+              | inr h =>
+                exact h
+            obtain ⟨y, hy_in, hy_eq⟩ := ex_elt_of_len_pos len_Y_pos
+            clear len_Y_ne_zero len_Y_pos h_lenX
+
+            rename_i h_lenY_lt_lenX
+            have h_y_lt_lenX : y < (len X) := by
+              apply lt_trans _ h_lenY_lt_lenX
+              apply L1 hy_in
+
+            -- then show that if last of Y holds, but (len Y) does not,
+            -- then some bit had to be set in X
+            false_or_by_contra
+            · rename_i h_lenY_notin_X
+              have h := (h_Y.right (len Y) h_lenY_lt_lenX).mpr
+              apply @len_not_in num _ _ Y
+              apply h
+              intro y2 h_y2
+              rw [le_iff_eq_or_lt] at h_y2
+              cases h_y2 with
+              | inl h_y2 =>
+                rw [h_y2]
+                apply (h_Y.right (len Y) h_lenY_lt_lenX).mp
+                apply h
+                intro y3 hy3
+                rw [le_iff_eq_or_lt] at hy3
+                cases hy3 with
+                | inl hy3 =>
+                  rw [hy3]
+                  exact h_lenY_notin_X
+                | inr hy3 =>
+                  apply (h_Y.right y h_y_lt_lenX).mp hy_in
+                  rw [B11, hy_eq]
+                  exact hy3
+                rfl
+              | inr h_y2 =>
+                clear h
+                apply (h_Y.right y h_y_lt_lenX).mp hy_in
+                rw [B11, hy_eq]
+                exact h_y2
+      · -- ∀ z < len Y, z ∉ X
+        intro z h_z
+        intro h_zX
+        -- notice: Y is of the form 11111..1 - if we get any 0 in Y,
+        -- it means that a bit in X was set. so, we won't get any further
+        -- bits set in Y!
+        have h_y_lt_lenX : y < len X := by
+          apply lt_of_lt_of_le (L1 hy_in) h_Y.left
+
+        have h_X := (h_Y.right y h_y_lt_lenX).mp hy_in z
+        apply h_X
+        · rw [B11, hy_eq]
+          exact h_z
+        · exact h_zX
+  · have Y_empty : len Y = (0 : num) := by
+      have h1 := B9 (num := num) (len Y)
+      rw [le_iff_eq_or_lt] at h1
+      cases h1 with
+      | inl h1 => exact h1.symm
+      | inr h1 => exfalso; apply h; exact h1
+    constructor
+    · rw [Y_empty]
+      exact h_lenX
+    · constructor
+      · -- len Y ∈ X
+        false_or_by_contra
+        rename_i h_contr
+        have zero_in_Y : (0 : num) ∈ Y := by
+          apply (h_Y.right 0 h_lenX).mpr
+          intro y hy
+          have y_zero := M.B7 _ _ hy (M.B9 _)
+          rw [y_zero, <- Y_empty]
+          exact h_contr
+        rw [<- Y_empty] at zero_in_Y
+        exact len_not_in zero_in_Y
+      · -- ∀ y < len Y, y ∉ X
+        intro y hy
+        exfalso
+        rw [Y_empty] at hy
+        exact not_lt_zero hy
+
+
+-- variable {num} {str : outParam Type} [V0Model num str]
+
+
+class HasSucc.{u} (α : Type u) where
+  succ : α -> α
+
+def Carry {num str} [V0Model num str] (i : num) (X Y : str) := ∃ k < i, (k ∈ X ∧ k ∈ Y ∧ ∀ j < i, (k < j → (j ∈ X ∨ j ∈ Y)))
+
+class V0ExtModel
+  (num : Type) (str : outParam Type)
+  extends
+  Zero str, HasSucc str, Add str,
+  V0Model (num := num) (str := str)
+where
+  ax_empty : ∀ {z : num}, z ∈ (0 : str) ↔ z < 0
+  ax_succ : ∀ {X : str}, ∀ {i : num}, i ∈ HasSucc.succ X ↔
+    (i ≤ len X
+      ∧ ((i ∈ X ∧ ∃ j < i, j ∉ X)
+          ∨ (i ∉ X ∧ ∀ j < i, j ∈ X)
+        )
+    )
+
+  ax_add : ∀ {X Y : str}, ∀ {i : num}, i ∈ X + Y ↔
+    (i < len X + len Y ∧ (Xor' (Xor' (i ∈ X) (i ∈ Y)) (Carry i X Y)))
+
+-- Exercise V.4.19
+
+-- namespace V0ExtModel
+variable [M : V0ExtModel.{0, 0} num str]
+
+open V0ExtModel V0Model BASICModel
+
+
+lemma len_empty : len (0 : str) = (0 : num) := by
+  false_or_by_contra
+  rename_i h
+  obtain ⟨pred, pred_le, pred_eq⟩ := B12 (num := num) h
+  have witness := L2 pred_eq
+  have aux := @ax_empty.{0, 0} _ _ _ pred
+  apply @not_lt_zero _ _ _ pred
+  apply aux.mp
+
+lemma ax_empty' : ∀ {z : num}, z ∉ (0 : str) := by
+  intro z
+  rw [ax_empty]
+  exact not_lt_zero
+
+lemma not_carry_empty : ∀ {X : str}, ∀ {i : num}, ¬Carry i X 0 := by
+  intro X i h
+  obtain ⟨_, _, _, bad, _⟩ := h
+  exact ax_empty' bad
+
+def Maj (P Q R : Prop) := P ∧ Q ∨ Q ∧ R ∨ P ∧ R
+
+open IDelta0Model
+
+lemma carry_rec1 : ∀ {X Y : str}, ∀ {i : num},
+  Carry i X Y -> (i ∈ X ∨ i ∈ Y) -> Carry (i + 1) X Y :=
+by
+  intro X Y i h ixy
+  obtain ⟨c, c_lt, cx, cy, cprev⟩ := h
+  exists c
+  constructor; rw [<- B11]; exact c_lt.1
+  constructor; exact cx
+  constructor; exact cy
+  intro j
+  by_cases j = i
+  · rename_i hji
+    intro _ hcj
+    rw [hji]
+    cases ixy with
+    | inl ix => left; exact ix
+    | inr iy => right; exact iy
+  · rename_i hji
+    intro hlt hcj
+    apply cprev
+    apply lt_of_le_of_ne
+    rw [B11]; exact hlt
+    exact hji
+    exact hcj
+
+
+-- Exercise V.4.18
+lemma carry_rec : ∀ {X Y : str}, ∀ {i : num},
+  (¬ Carry (0 : num) X Y) ∧ (Carry (i + 1) X Y ↔ Maj (Carry i X Y) (i ∈ X) (i ∈ Y)) := by
+  intro X Y i
+  constructor
+  · intro h
+    obtain ⟨_, lt, _⟩ := h
+    exact not_lt_zero lt
+  · constructor
+    · intro h
+      obtain ⟨pos, lt, inX, inY, prevs⟩ := h
+      by_cases h_pos : i = pos
+      · rw [h_pos]
+        right; left; constructor <;> assumption
+      · rw [<- B11] at lt
+        have hlt : pos < i := lt_of_le_of_ne lt (Ne.symm h_pos)
+        clear h_pos lt
+        have h_pos := prevs i (by rw [<- B11]) hlt
+        unfold Maj
+        suffices demorgan : (Carry i X Y ∧ (i ∈ X ∨ i ∈ Y))
+        · cases demorgan.2 with
+          | inl =>
+            left; constructor; exact demorgan.1; assumption
+          | inr =>
+            right; right; constructor; exact demorgan.1; assumption
+        · symm; constructor; exact h_pos
+          exists pos
+          constructor; exact hlt
+          constructor; exact inX
+          constructor; exact inY
+          intro j hj; apply prevs j
+          apply lt_trans hj
+          rw [<- B11]
+    · intro h
+      cases h with
+      | inl h =>
+        refine carry_rec1 h.1 (.inl h.2)
+      | inr h =>
+        cases h with
+        | inl h =>
+          exists i
+          constructor; rw [<- B11]
+          constructor; exact h.1
+          constructor; exact h.2
+          intro j hj hij
+          exfalso
+          have h := lt_iff_succ_le.mp hij
+          have h2 := B7 _ _ h hj.1
+          apply hj.2
+          exact h2.symm
+        | inr h =>
+          refine carry_rec1 h.1 (.inr h.2)
+
+lemma exists_of_len_lt : ∀ {X Y : str}, (len X : num) < len Y -> ∃ z, z ∈ Y ∧ z ∉ X ∧ z + 1 = len Y := by
+  intro X Y h_lt
+  have h_len_ne_zero := ne_zero_of_lt h_lt (α := num)
+  obtain ⟨len_pred, pred_le, pred_eq⟩ := B12 (num := num) h_len_ne_zero
+  have pred_in := L2 pred_eq
+  rw [lt_iff_le_not_ge] at h_lt
+  exists len_pred
+  constructor
+  exact pred_in
+  symm
+  constructor
+  exact pred_eq
+  intro h_in_X
+  apply h_lt.2
+  rw [B11]
+  rw [<- pred_eq]
+  rw [add_lt_add_iff_right]
+  apply L1
+  exact h_in_X
+
+lemma exists_of_len_lt' : ∀ {X : str}, ∀ {i : num}, i < len X -> ∃ z, z ∈ X ∧ i ≤ z ∧ z + 1 = len X := by
+  intro X i h_lt
+  have h_len_ne_zero := ne_zero_of_lt h_lt (α := num)
+  obtain ⟨len_pred, pred_le, pred_eq⟩ := B12 (num := num) h_len_ne_zero
+  have pred_in := L2 pred_eq
+  rw [lt_iff_le_not_ge] at h_lt
+  exists len_pred
+  constructor
+  exact pred_in
+  symm
+  constructor
+  exact pred_eq
+  rw [B11]
+  rw [pred_eq]
+  constructor
+  exact h_lt.1
+  intro h
+  apply h_lt.2
+  exact _root_.le_of_eq h.symm
+
+lemma len_add_empty : ∀ X : str, len (X + 0) = (len X : num) := by
+  false_or_by_contra
+  rename_i hlen
+  cases lt_or_gt_of_ne hlen with
+  | inl hlen =>
+    obtain ⟨k, k_in, k_notin, k_eq⟩ := exists_of_len_lt hlen
+    apply k_notin
+    rw [ax_add]
+    constructor
+    · rw [len_empty]
+      rw [B3]
+      rw [<- k_eq]
+      rw [<- B11]
+    · constructor
       constructor
-      · sorry
-      · sorry
-    )
-    unfold Membership.mem instMembershipOfStructure
-    simp only
-    apply h_X_def.mpr
+      · constructor
+        constructor
+        · exact k_in
+        · exact ax_empty'
+      · exact not_carry_empty
+  | inr hlen =>
+    obtain ⟨k, k_in, k_notin, k_eq⟩ := exists_of_len_lt hlen
+    apply k_notin
+    rw [ax_add] at k_in
+    obtain ⟨_, h_carry⟩ := k_in
+    cases h_carry with
+    | inl h_carry =>
+      obtain ⟨h_carry_len, _⟩ := h_carry
+      cases h_carry_len with
+      | inl h_carry =>
+        exact h_carry.1
+      | inr h_carry =>
+        exfalso
+        exact ax_empty' h_carry.1
+    | inr h_carry =>
+      exfalso
+      exact not_carry_empty h_carry.1
 
-    -- we need to show that `base` is actually the target........
-    -- revert and intro so that it's easy to see and compare both
-    revert base
-    intro base
+theorem str_add_zero : ∀ X : str, X + (0 : str) = X := by
+  intro X
+  apply M.SE
+  · apply len_add_empty
+  · intro y h_ylen
+    constructor
+    · intro hy
+      false_or_by_contra
+      rename_i h
+      apply h
+      rw [ax_add] at hy
+      obtain ⟨_, h_xor⟩ := hy
+      cases h_xor with
+      | inl h_xor =>
+        cases h_xor.1 with
+        | inl h_xor =>
+          exact h_xor.1
+        | inr h_xor =>
+          exfalso
+          exact ax_empty' h_xor.1
+      | inr h_xor =>
+        obtain ⟨_, _, _, bad, _⟩ := h_xor.1
+        exfalso; exact ax_empty' bad
+    · intro hy
+      rw [ax_add]
+      constructor
+      · rw [len_empty]
+        rw [add_zero]
+        rw [len_add_empty] at h_ylen
+        exact h_ylen
+      · constructor; constructor
+        · constructor; constructor
+          · exact hy
+          · exact ax_empty'
+        · intro h_bad
+          apply not_carry_empty h_bad
 
-    conv at base =>
-      rw [realize_subst]
-      conv =>
-        arg 1; arg 1
-        unfold alls
-      unfold iAlls' alls alls
-      conv =>
-        arg 2
-        simp only [realize_zero_to_zero]
-      simp only [Nat.add_zero]
-    convert base
+open HasSucc
 
-  have step_X : ∀ y < z, y.isLeft -> y ∈ X -> (y + 1) ∈ X := by
-    intro y h_yz h_ytype h_yX
+lemma len_le_len_succ : ∀ {X : str}, (len X : num) ≤ len (succ X) := by
+  intro X
+  false_or_by_contra
+  rename_i h
+  rw [not_le] at h
+  obtain ⟨p, px, ps, p_eq⟩ := exists_of_len_lt h
+  rw [ax_succ] at ps
+  simp only [not_and, not_or, not_exists, not_not, not_forall] at ps
+  specialize ps (by
+    rw [<- p_eq]
+    exact le_self_add
+  )
+  have aux : (p + 1) ∈ succ X := by
+    rw [ax_succ]
+    constructor
+    rw [p_eq]
+    right
+    constructor
+    intro hp
+    apply (L1 _ _ hp).2
+    exact p_eq
+    intro j jp
+    by_cases hj : j = p
+    · rw [hj]; exact px
+    · apply ps.1
+      exact px
+      constructor
+      rw [B11]
+      exact jp
+      exact hj
 
-    -- simplify goal
-    have h_X_def_y := h_X_def y (by
-      -- y + 1 ≤ z ∧ ¬z ≤ y + 1
-      sorry
-    )
-    have h_X_def_ysucc := h_X_def (y + 1) (by
-      -- y + 1 ≤ z ∧ ¬z ≤ y + 1
-      sorry
-    )
-    rw [Membership.mem, instMembershipOfStructure]
-    simp only
-    rw [h_X_def_ysucc]
-
-    -- now try to apply step
-    specialize step y
-    conv at step =>
-      rw [BoundedFormula.realize_relabel]
-      unfold Formula.flip
-      rw [BoundedFormula.realize_relabelEquiv]
-      unfold display
-      unfold toFormula'
-      rw [BoundedFormula.realize_relabelEquiv]
-      unfold IsNum
-      rw [BoundedFormula.realize_imp]
-      rw [BoundedFormula.realize_imp]
-
-    -- prove typing rule of step
-    specialize step (by
-      simp only [hasDispIsEnum.eq_1, Fin.isValue, Nat.add_zero, Nat.reduceAdd, Fin.castAdd_zero,
-        Fin.cast_refl, Function.comp_id, Equiv.coe_fn_mk, BoundedFormula.realize_rel₁,
-        Term.realize_var, Sum.elim_inl, Function.comp_apply, Sum.swap_inl, Sum.map_inr,
-        Sum.elim_inr, Fin.snoc, Fin.val_eq_zero, lt_self_iff_false, ↓reduceDIte, Fin.reduceLast,
-        cast_eq]
-      sorry
-    )
-
-    -- prove precondition of step
-    specialize step (by
-      -- unfold IsNum
-      -- intro
-      conv at h_yX =>
-        rw [Membership.mem, instMembershipOfStructure]
-        simp only
-      rw [h_X_def_y] at h_yX
-
-      convert h_yX
-      unfold iAlls'
-      conv =>
-        lhs
-        unfold alls alls
-      rfl
-    )
-
-    -- match with the postcondition of step!
-    conv at step =>
-      rw [realize_subst]
-      unfold iAlls'
-      simp [delta0_simps]
-
-    unfold alls at step
-    unfold alls at step
-
-    convert step
+  have aux2 : p + 1 ≤ len (succ X) := (L1 _ _ aux).1
+  rw [p_eq] at aux2
+  have aux3 : len X < len X := lt_of_le_of_lt aux2 h
+  apply aux3.2
+  rfl
 
 
-  -- recall: By B11, Exercise V.1.1 (c,e) and (51) [`base ∧ step`]
-  -- we conclude from this X(0) ∧ ∀ y < z, (X(y) -> X(y + 1))
-  -- Finally X(z) follows from this and X-IND, ...
-  -- careful! out `Membership` is on Strs num str, not on str..
-  let X' : Strs num str := ⟨X, typeStrLift X h_X_type⟩
-  have h_z_in_X := X_IND num str z' X'
+lemma len_add_le_add_len : ∀ {X Y : str}, len (X + Y) ≤ (len X : num) + len Y := by
+  intro X Y
+  by_cases len (X + Y) = (0 : num)
+  · (expose_names; exact StrictMono.minimal_preimage_bot (fun ⦃a b⦄ a ↦ a) h (len X + len Y))
+  · rename_i h
+    obtain ⟨k, k_le, k_eq⟩ := B12 h
+    have last := L2 k_eq
+    rw [ax_add] at last
+    rw [<- k_eq]
+    rw [B11]
+    rw [@add_lt_add_iff_right]
+    exact last.1
 
-  -- conv at h_z_in_X =>
-  --   conv => left; rw [memLift]
-  --   conv => right; left; right; rw [memLift]
-  --   conv => right; right; rw [memLift]
-  simp_rw [memLift] at h_z_in_X
-  -- specialize h_z_in_X base_X
-  -- ... and so φ(z) follows from (52) [`X_def`] and Exercise V.1.1 (b)
+lemma mem_succ_iff_xor_prefix :
+    ∀ {Z : str} {i : num},
+      i ∈ succ Z ↔ i ≤ len Z ∧ Xor' (i ∈ Z) (∀ j < i, j ∈ Z) := by
+  intro Z i
+  classical
+  constructor
+  · intro hi
+    have h := (ax_succ (X := Z) (i := i)).1 hi
+    rcases h with ⟨h_le, h_cases⟩
+    refine ⟨h_le, ?_⟩
+    cases h_cases with
+    | inl h1 =>
+        rcases h1 with ⟨hiZ, ⟨j, hjlt, hjnot⟩⟩
+        left
+        refine ⟨hiZ, ?_⟩
+        intro hall
+        exact hjnot (hall j hjlt)
+    | inr h2 =>
+        rcases h2 with ⟨hiZ, hall⟩
+        right
+        symm
+        exact ⟨hiZ, hall⟩
+  · rintro ⟨h_le, hxor⟩
+    have h_cases :
+        (i ∈ Z ∧ ∃ j < i, j ∉ Z) ∨ (i ∉ Z ∧ ∀ j < i, j ∈ Z) := by
+      cases hxor with
+      | inl h =>
+          rcases h with ⟨hiZ, hnall⟩
+          left
+          refine ⟨hiZ, ?_⟩
+          by_contra hno
+          have hall : ∀ j < i, j ∈ Z := by
+            intro j hjlt
+            by_contra hjnot
+            exact hno ⟨j, hjlt, hjnot⟩
+          exact hnall hall
+      | inr h =>
+          right
+          symm
+          exact h
+    exact (ax_succ (X := Z) (i := i)).2 ⟨h_le, h_cases⟩
+
+lemma prefix_carry_lemma :
+    ∀ {X Y : str} {i : num},
+      (∀ j < i, j ∈ (X + Y)) ↔
+        Xor' (∀ j < i, j ∈ Y) (Xor' (Carry i X Y) (Carry i X (succ Y))) := by
+  sorry
+
+lemma add_succ_of_succ_add : ∀ {X Y : str}, ∀ {y : num}, y ∈ succ (X + Y) -> y ∈ X + succ Y := by
+  intro X Y y hy
+
+
+  rw [ax_succ] at hy
+  obtain ⟨y_le, y_cond⟩ := hy
+  cases y_cond with
+  | inl y_cond =>
+    rw [ax_add] at y_cond
+    obtain ⟨⟨y_lt, y_xor⟩, y_prefix⟩ := y_cond
+    cases y_xor with
+    | inl y_xor =>
+      obtain ⟨h_xy, not_carry⟩ := y_xor
+      cases h_xy with
+      | inl h_x =>
+
+
+  rw [ax_add]
+  constructor
+  · sorry
+
+
+
+
+
+
+lemma succ_len_eq : ∀ {X Y : str}, len (X + succ Y) = (len (succ (X + Y)) : num) := by
+  intro X Y
   sorry
 
 
--- Theorem V.1.9. V⁰ is a conservative extension of IΔ₀
--- instance [h : V0Model num str] : IDelta0Model num where
---   funMap {n_args} f args :=
---     match f with
---     | PeanoFunc.zero => (h.funMap ZambellaFunc.zero args) ∘ (fun n => Sum.inl (β := str) n))
+lemma succ_add_of_add_succ : ∀ {X Y : str}, ∀ {y : num}, y ∈ X + succ Y -> y ∈ succ (X + Y) := by
+  sorry
+
+lemma gt_iff_not_le : ∀ {x y : num}, ¬ x ≤ y <-> x > y := by
+  intro x y
+  constructor
+  · simp only [not_le, gt_iff_lt, imp_self]
+  · exact fun a ↦ not_le_of_gt a
 
 
+lemma succ_add_iff_add_succ : ∀ {X Y : str}, ∀ {y : num}, y ∈ X + succ Y <-> y ∈ succ (X + Y) :=
+  ⟨succ_add_of_add_succ, add_succ_of_succ_add⟩
 
-
-end V0Model
-
-
-
-
-
-
-
--- -- we need to prove add_assoc -> zero_add_comm -> zero_add
--- -- in order to prove the C axiom for BASIC
--- theorem add_assoc
---   : ∀ x y z : M, (x + y) + z = x + (y + z) :=
--- by
---   -- the below block is a set of repetitive conversion we need to do;
---   -- this should be automatized by a single tactic
---   have ind := open_induction (self := iopen)
---     (display_z_xyz  $ ((x + y) + z) =' (x + (y + z)))
---   simp only [delta0_simps] at ind
---   specialize ind trivial
---   -- now, we cannot simply do `apply ind` without `intros`,
---   -- because our induction formula has a different order of quantifiers;
---   -- Lean can't unify ∀x y, phi(x, y) with ∀y x, phi(x, y)
---   -- see also: refer to Mathlib.Logic.Basic.forall_swap
---   intros
---   apply ind ?base ?step
---   clear ind
---   · intro x y
---     rw [B3 (x + y)]
---     rw [B3 y]
---   · intro z hInd x y
---     rw [B4]
---     rw [B4]
---     rw [B4]
---     rw [<- (B2 (x + y + z) (x + (y + z)))]
---     rw [hInd]
+theorem str_succ_assoc : ∀ {X Y : str}, X + succ Y = succ (X + Y) := by
+  intro X Y
+  apply M.SE
+  · exact succ_len_eq
+  · intro y y_lt
+    exact succ_add_iff_add_succ
