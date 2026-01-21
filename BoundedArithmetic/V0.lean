@@ -119,7 +119,8 @@ where
     ∀ x < b,
       x ∈ Y ↔ (∀ y : num, y ≤ c → ⟨x, y⟩ ∈ Q)
 
-variable {num str} [M : V0Model.{0, 0} num str]
+namespace V0Model
+variable {num str} [M : V0Model num str]
 open V0Model
 
 
@@ -325,6 +326,13 @@ by
         exact not_lt_zero hy
 
 
+end V0Model
+
+-- Corollary V.1.8
+-- T, extending V0, if proves Comp for set of formulas Phi,
+-- then also proves Ind, Min and Max for Phi.
+-- theorem ind_of_comp : ∀ x : num, comp x ->
+
 -- variable {num} {str : outParam Type} [V0Model num str]
 
 
@@ -353,7 +361,7 @@ where
 -- Exercise V.4.19
 
 -- namespace V0ExtModel
-variable [M : V0ExtModel.{0, 0} num str]
+variable {num str : Type} [M : V0ExtModel num str]
 
 open V0ExtModel V0Model BASICModel
 
@@ -363,9 +371,10 @@ lemma len_empty : len (0 : str) = (0 : num) := by
   rename_i h
   obtain ⟨pred, pred_le, pred_eq⟩ := B12 (num := num) h
   have witness := L2 pred_eq
-  have aux := @ax_empty.{0, 0} _ _ _ pred
+  have aux := @ax_empty _ _ M pred
   apply @not_lt_zero _ _ _ pred
   apply aux.mp
+  exact witness
 
 lemma ax_empty' : ∀ {z : num}, z ∉ (0 : str) := by
   intro z
@@ -596,7 +605,7 @@ lemma len_le_len_succ : ∀ {X : str}, (len X : num) ≤ len (succ X) := by
     right
     constructor
     intro hp
-    apply (L1 _ _ hp).2
+    apply (L1 hp).2
     exact p_eq
     intro j jp
     by_cases hj : j = p
@@ -608,7 +617,7 @@ lemma len_le_len_succ : ∀ {X : str}, (len X : num) ≤ len (succ X) := by
       exact jp
       exact hj
 
-  have aux2 : p + 1 ≤ len (succ X) := (L1 _ _ aux).1
+  have aux2 : p + 1 ≤ len (succ X) := (L1 aux).1
   rw [p_eq] at aux2
   have aux3 : len X < len X := lt_of_le_of_lt aux2 h
   apply aux3.2

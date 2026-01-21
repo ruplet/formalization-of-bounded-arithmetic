@@ -124,6 +124,20 @@ instance : IsOrderedRing M where
 
 instance : CommSemiring M where
 
+instance : IsLeftCancelAdd M where
+  add_left_cancel x := by
+    unfold IsAddLeftRegular
+    unfold Function.Injective
+    intro a1 a2
+    simp only
+    intro h
+    conv at h =>
+      rw [add_comm]
+      rhs
+      rw [add_comm]
+    rw [@IOPENModel.add_cancel_right] at h
+    exact h
+
 noncomputable instance : LinearOrder M where
   le_total := idelta0.le_total
   min_def := by simp only [implies_true]
@@ -161,4 +175,11 @@ noncomputable instance : LinearOrderedCommMonoidWithZero M where
 --   le_of_add_le_add_left := by
 --     intro a b c h
 --     rw [le_cancel_left]
+
+
+noncomputable instance : LinearOrderedCommMonoidWithZero M where
+  zero_le_one := by
+    exact zero_le_one' M
+
+
 end IDelta0
