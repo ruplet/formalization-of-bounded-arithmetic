@@ -326,6 +326,101 @@ by
         exact not_lt_zero hy
 
 
+lemma comp_xind : ∀ X : str, ∀ z : num, ∃ Y : str, len Y <= z + 1 ∧ ∀ y < z + 1, (y ∈ Y ↔ y ∉ X) := by
+  sorry
+
+lemma len_ne_zero_of_in : ∀ {x : num}, ∀ {X : str},
+  x ∈ X -> len X ≠ (0 : num) :=
+by
+  intro x X h
+  have h2 := L1 h
+  apply ne_of_gt
+  apply lt_of_le_of_lt _ h2
+  exact B9 x
+
+theorem xind :
+  ∀ {X : str}, ∀ {z : num},
+  0 ∈ X
+  -> (∀ y < z, y ∈ X -> y + 1 ∈ X)
+  -> z ∈ X :=
+by
+  intro X z h_base h_y
+  false_or_by_contra
+  rename_i h_z
+
+  obtain ⟨Y, h_Y_le, h_Y⟩ := comp_xind X z
+
+  have h_z_in_Y : z ∈ Y := by
+    rw [h_Y]
+    · exact h_z
+    · exact lt_succ z
+
+  have h_Y_pos : (0 : num) < len Y := by
+    rw [lt_iff_le_and_ne]
+    constructor
+    · apply B9
+    · exact Ne.symm (len_ne_zero_of_in h_z_in_Y)
+
+  obtain ⟨y0, h_y0⟩ := xmin h_Y_pos
+
+  have h_y0_ne_zero : y0 ≠ 0 := by
+    have h_0_notin_Y : 0 ∉ Y := by
+      rw [h_Y]
+      rw [@not_not]
+      exact h_base
+      constructor
+      · apply B9
+      · symm
+        apply M.B1
+
+    intro contr
+    apply h_0_notin_Y
+    rw [<-contr]
+    exact h_y0.2.1
+
+  obtain ⟨x0, h_x0⟩ := B12 h_y0_ne_zero
+
+  have h_x0_in : x0 ∈ X := by
+    apply not_not.mp
+    rw [<- h_Y]
+    · apply h_y0.2.2
+      rw [<- h_x0.2]
+      exact lt_succ x0
+    · apply lt_of_lt_of_le _ h_Y_le
+      apply lt_trans _ h_y0.1
+      rw [<- h_x0.2]
+      exact lt_succ x0
+
+  have h_succ_x0_notin : x0 + 1 ∉ X := by
+    rw [h_x0.2]
+    rw [<- h_Y]
+    · exact h_y0.2.1
+    · apply lt_of_lt_of_le _ h_Y_le
+      exact h_y0.1
+
+  apply h_succ_x0_notin
+  apply h_y
+  · have aux : y0 < z + 1 := by
+      apply lt_of_lt_of_le _ h_Y_le
+      apply L1
+      exact h_y0.2.1
+    rw [<- B11] at aux
+    apply lt_of_lt_of_le _ aux
+    rw [<- h_x0.2]
+    apply lt_succ
+  · exact h_x0_in
+
+
+
+
+
+
+
+
+
+
+
+
 end V0Model
 
 -- Corollary V.1.8
