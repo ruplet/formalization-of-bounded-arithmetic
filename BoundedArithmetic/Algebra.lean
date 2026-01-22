@@ -12,6 +12,7 @@ variable {M : Type u} [iopen : IOPENModel M]
 
 open BASICModel IOPENModel
 
+
 theorem isAddRightRegular_one : IsAddRightRegular (1 : M) := by
   unfold IsAddRightRegular Function.Injective
   exact B2
@@ -26,7 +27,7 @@ instance : IsRightCancelAdd M where
 
 instance : MulZeroClass M where
   zero_mul := zero_mul
-  mul_zero := B5
+  mul_zero := by apply B5
 
 instance : CommMonoid M where
   mul_assoc := mul_assoc
@@ -58,48 +59,6 @@ section IDelta0
 
 open BASICModel
 variable {M : Type u} [idelta0 : IDelta0Model M]
-
--- D4 used
-instance : PartialOrder M where
-  le_refl := idelta0.le_refl
-  le_trans := @idelta0.le_trans
-  le_antisymm := B7
-  lt_iff_le_not_ge := by
-    intro a b
-    constructor
-    · intro hab
-      rcases hab with ⟨hle, hne⟩
-      constructor
-      · exact hle
-      · by_contra hba
-        apply hne
-        apply B7
-        exact hle
-        exact hba
-    · intro h
-      rcases h with ⟨hle, hnba⟩
-      constructor
-      · exact hle
-      · by_contra hab
-        apply hnba
-        rw [hab] at ⊢ hle
-        exact hle
-
-instance : CanonicallyOrderedAdd M where
-  exists_add_of_le := by
-    intro a b hab
-    have diff := idelta0.add_diff_exists a b
-    obtain ⟨diff, hdiff⟩ := diff
-    cases hdiff with
-    | inl h => rw [<- h]; exists diff
-    | inr h =>
-      exists 0
-      rw [B3]
-      apply B7
-      · rw [<- h]
-        apply B8
-      · exact hab
-  le_self_add := B8
 
 instance : IsOrderedAddMonoid M where
   add_le_add_left := fun _ _ a_1 c ↦ add_le_add_left a_1 c
@@ -137,32 +96,6 @@ instance : IsLeftCancelAdd M where
       rw [add_comm]
     rw [@IOPENModel.add_cancel_right] at h
     exact h
-
-noncomputable instance : LinearOrder M where
-  le_total := idelta0.le_total
-  min_def := by simp only [implies_true]
-  max_def := by exact fun a b ↦ rfl
-  compare_eq_compareOfLessAndEq := by
-    simp only [implies_true]
-
-  toDecidableLE := by
-    unfold DecidableLE DecidableRel
-    intro a b
-    if ha : a = 0 then
-      apply Decidable.isTrue
-      rw [ha]
-      apply zero_le b
-    else
-      if hb : b = 0 then
-        apply Decidable.isFalse
-        rw [hb]
-        intro ha'
-        apply ha
-        exact nonpos_iff_eq_zero.mp ha'
-      else
-        -- HERE, WE SHOULD TAKE PREDECESSOR OF
-        -- BOTH AND RECURSE!
-        exact Classical.propDecidable (a ≤ b)
 
 noncomputable instance : LinearOrderedCommMonoidWithZero M where
   bot := 0

@@ -52,15 +52,6 @@ instance : Language.IsOrdered peano where
 @[delta0_simps] instance : Mul (peano.Term a) where
   mul := Functions.apply₂ .mul
 
-
--- @[delta0_simps] instance : SMul ℕ (peano.Term a) where
---   smul := nsmulRec
--- @[delta0_simps] theorem zero_nsmul {t : peano.Term a} : 0 • t = 0 := rfl
--- @[delta0_simps] theorem succ_nsmul {t : peano.Term a} {n : ℕ} : (n + 1) • t = n • t + t := rfl
-
--- instance : NatCast (peano.Term a) where
---   natCast := Nat.unaryCast
-
 -- inspired by https://github.com/leanprover-community/mathlib4/blob/cff2a6ea669abe2e384ea4c359f20ee90a5dc855/Mathlib/ModelTheory/Syntax.lean#L732
 -- standard precedence of ≤, ≠, <: 50
 -- standard precedence of +: 65; of *: 70
@@ -90,6 +81,10 @@ instance {M} [h : Language.peano.Structure M] : Mul M :=
 
 instance {M} [h : Language.peano.Structure M] : LE M :=
   ⟨fun x y => h.RelMap PeanoRel.leq ![x, y]⟩
+
+@[simp]
+instance {M} [h : Language.peano.Structure M] : LT M :=
+  ⟨fun x y => x <= y ∧ ¬ y <= x⟩
 
 def natToM {M} [h : Language.peano.Structure M] : Nat -> M
 | 0 => 0

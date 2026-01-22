@@ -27,7 +27,7 @@ class V0Model
   extends
   HasLen str num,
   Membership num str,
-  IDelta0Model num
+  BASICModel num
 where
   -- axiom for empty string; 4.4.1 Two-Sorted Free Variable Normal Form
   -- E : len (empty : str) = (0 : num)
@@ -43,7 +43,7 @@ where
   B10: ∀ x y : num, x <= y ∨ y <= x
   B11: ∀ x y : num, x <= y <-> x < (y + 1)
   B12: ∀ {x : num},       x ≠ 0 -> (∃ y : num, (y <= x ∧ (y + 1) = x))
-  L1 : ∀ {X : str}, ∀ {y : num}, y ∈ X -> (y <= (len X) ∧ y ≠ (len X))
+  L1 : ∀ {X : str}, ∀ {y : num}, y ∈ X -> (y < (len X))
   L2 : ∀ {X : str}, ∀ {y : num}, (y + 1) = len X -> y ∈ X
 
   SE : ∀ {X Y: str},
@@ -119,9 +119,61 @@ where
     ∀ x < b,
       x ∈ Y ↔ (∀ y : num, y ≤ c → ⟨x, y⟩ ∈ Q)
 
+  -- le_refl : ∀ x : num, x <= x
+  le_trans : ∀ x y z : num, x <= y -> y <= z -> x <= z
+  zero_add : ∀ x : num, 0 + x = x
+  add_left_cancel : ∀ x : num, IsAddLeftRegular x
+  add_right_cancel : ∀ x : num, IsAddRightRegular x
+  add_assoc : ∀ x y z : num, (x + y) + z = x + (y + z)
+  le_total : ∀ (a b : num), a ≤ b ∨ b ≤ a
+  toDecidableLE : DecidableLE num
+  exists_add_of_le : ∀ {a b : num}, a ≤ b → ∃ c, b = a + c
+  add_le_add_left : ∀ (a b : num), a ≤ b → ∀ (c : num), c + a ≤ c + b
+  le_antisymm : ∀ (a b : num), a ≤ b → b ≤ a → a = b
+  add_comm : ∀ (a b : num), a + b = b + a
+
 namespace V0Model
+
+
 variable {num str} [M : V0Model num str]
-open V0Model
+open V0Model BASICModel
+
+
+instance : PartialOrder num where
+  le_refl := BASICModel.le_refl
+  le_trans := V0Model.le_trans
+  le_antisymm := by apply B7
+
+instance : AddZeroClass num where
+  zero_add := zero_add
+  add_zero := by apply B3
+
+instance : IsLeftCancelAdd num where
+  add_left_cancel := add_left_cancel
+
+instance : IsRightCancelAdd num where
+  add_right_cancel := add_right_cancel
+
+instance : AddMonoid num where
+  add_assoc := add_assoc
+  nsmul := nsmulRec
+
+instance : LinearOrder num where
+  le_total := le_total
+  toDecidableLE := toDecidableLE
+
+instance : CanonicallyOrderedAdd num where
+  exists_add_of_le := exists_add_of_le
+  le_self_add := by apply B8
+
+instance : AddCommMonoid num where
+  add_comm := add_comm
+
+instance : PartialOrder num where
+  le_antisymm := le_antisymm
+
+instance : IsOrderedAddMonoid num where
+  add_le_add_left := add_le_add_left
 
 
 theorem xmin_comp (X : str) : ∃ Y : str, (len Y : num) ≤ len X ∧ ∀ z < len X, z ∈ Y ↔ ∀ y ≤ z, y ∉ X :=
@@ -130,7 +182,9 @@ by
 
 lemma ex_elt_of_len_pos : ∀ {X : str}, (0 : num) < (len X) -> ∃ x, x ∈ X ∧ x + 1 = len X := by
   intro X h_len
-  obtain ⟨len_pred, h_le, h_eq⟩ := M.B12 h_len.right.symm
+  obtain ⟨len_pred, h_le, h_eq⟩ := B12 (by
+    exact Ne.symm (ne_of_lt h_len)
+  )
   exists len_pred
   constructor
   · apply L2
@@ -139,12 +193,13 @@ lemma ex_elt_of_len_pos : ∀ {X : str}, (0 : num) < (len X) -> ∃ x, x ∈ X �
 
 lemma lt_succ : ∀ (x : num), x < x + 1 := by
   intro x
+  rw [lt_iff_le_and_ne]
   constructor
-  · apply M.B8
+  · apply B8
   · intro h
     conv at h => lhs; rw [<- add_zero x]
     rw [add_left_cancel_iff] at h
-    apply M.B1 0
+    apply @M.B1 0
     symm
     rw [<- h]
     rw [@right_eq_add]
@@ -167,7 +222,7 @@ instance : CanonicallyOrderedAdd num where
     intro a b
     conv => lhs; rw [<- M.B3 a]
     apply add_le_add
-    · apply le_refl
+    · apply _root_.le_refl
     · apply M.B9
 
 theorem xmin :
@@ -218,7 +273,7 @@ by
           exfalso
           rw [<- h] at h_lenX
           conv at h_Y => right; rw [<- h]
-          have aux := (h_Y.right y (M.L1 hy_in)).mp hy_in y (le_refl _)
+          have aux := (h_Y.right y (M.L1 hy_in)).mp hy_in y (_root_.le_refl _)
           apply aux
           apply L2
           rw [<- h]
@@ -314,7 +369,7 @@ by
         have zero_in_Y : (0 : num) ∈ Y := by
           apply (h_Y.right 0 h_lenX).mpr
           intro y hy
-          have y_zero := M.B7 _ _ hy (M.B9 _)
+          have y_zero := B7 hy (M.B9 _)
           rw [y_zero, <- Y_empty]
           exact h_contr
         rw [<- Y_empty] at zero_in_Y
@@ -370,8 +425,13 @@ by
       exact h_base
       constructor
       · apply B9
-      · symm
-        apply M.B1
+      · rw [le_iff_eq_or_lt]
+        intro contr
+        cases contr with
+        | inl contr =>
+          apply M.B1 contr
+        | inr contr =>
+          apply M.not_lt_zero contr
 
     intro contr
     apply h_0_notin_Y
@@ -411,15 +471,43 @@ by
   · exact h_x0_in
 
 
+theorem ind_of_comp (P : num -> Prop) :
+  (∀ y : num, ∃ Y : str, (len Y : num) ≤ y ∧ ∀ z < y, z ∈ Y ↔ P z)
+  -> (P 0 -> (∀ x, P x -> P (x + 1)) -> ∀ x, P x) :=
+by
+  intro hcomp pbase pstep z
+
+  obtain ⟨X, hX⟩ := hcomp (z + 1)
+
+  have hX0 : 0 ∈ X := by
+    rw [hX.2]
+    exact pbase
+    rw [<- B11]
+    exact B9 z
+
+  have hXstep : ∀ y < z, y ∈ X -> y + 1 ∈ X := by
+    intro y hyz hyX
+    rw [hX.2]
+    · apply pstep
+      rw [<- hX.2]
+      · exact hyX
+      · rw [<- B11]
+        exact hyz.1
+    · exact (add_lt_add_iff_right 1).mpr hyz
+
+  have hzX : z ∈ X := by
+    apply xind
+    · exact hX0
+    · exact hXstep
+
+  rw [<- hX.2]
+  exact hzX
+  exact lt_succ z
 
 
-
-
-
-
-
-
-
+instance : IDelta0Model num where
+  open_induction phi h_open x := sorry
+  delta0_induction phi h_delta0 x := sorry
 
 end V0Model
 
@@ -558,9 +646,9 @@ lemma carry_rec : ∀ {X Y : str}, ∀ {i : num},
           intro j hj hij
           exfalso
           have h := lt_iff_succ_le.mp hij
-          have h2 := B7 _ _ h hj.1
+          have h2 := B7 h hj.1
           apply hj.2
-          exact h2.symm
+          exact h
         | inr h =>
           refine carry_rec1 h.1 (.inr h.2)
 
@@ -602,7 +690,7 @@ lemma exists_of_len_lt' : ∀ {X : str}, ∀ {i : num}, i < len X -> ∃ z, z �
   exact h_lt.1
   intro h
   apply h_lt.2
-  exact _root_.le_of_eq h.symm
+  exact h
 
 lemma len_add_empty : ∀ X : str, len (X + 0) = (len X : num) := by
   false_or_by_contra
@@ -701,16 +789,19 @@ lemma len_le_len_succ : ∀ {X : str}, (len X : num) ≤ len (succ X) := by
     constructor
     intro hp
     apply (L1 hp).2
-    exact p_eq
+    exact _root_.le_of_eq (id (Eq.symm p_eq))
     intro j jp
     by_cases hj : j = p
     · rw [hj]; exact px
     · apply ps.1
       exact px
       constructor
-      rw [B11]
-      exact jp
-      exact hj
+      · rw [B11]
+        exact jp
+      · rw [<- B11] at jp
+        intro contr
+        apply hj
+        apply _root_.le_antisymm <;> assumption
 
   have aux2 : p + 1 ≤ len (succ X) := (L1 aux).1
   rw [p_eq] at aux2

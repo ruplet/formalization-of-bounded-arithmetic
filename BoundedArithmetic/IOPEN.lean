@@ -106,8 +106,6 @@ by
     rw [<- add_assoc]
     rw [ha]
 
-#check forall_swap
-
 -- O2. x + y = y + x (Commutativity of +)
 -- proof : induction on y, first establishing the special cases y = 0 and y = 1
 theorem add_comm
