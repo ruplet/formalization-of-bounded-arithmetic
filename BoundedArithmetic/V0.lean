@@ -524,6 +524,10 @@ class HasSucc.{u} (α : Type u) where
 
 def Carry {num str} [V0Model num str] (i : num) (X Y : str) := ∃ k < i, (k ∈ X ∧ k ∈ Y ∧ ∀ j < i, (k < j → (j ∈ X ∨ j ∈ Y)))
 
+-- use some comprehension for that
+lemma CarryStr {num str} [V0Model num str] (X Y : str) : ∃ C : str, ∀ i : num, i ∈ C ↔ Carry i X Y := by
+  sorry
+
 class V0ExtModel
   (num : Type) (str : outParam Type)
   extends
@@ -570,6 +574,28 @@ lemma not_carry_empty : ∀ {X : str}, ∀ {i : num}, ¬Carry i X 0 := by
   exact ax_empty' bad
 
 def Maj (P Q R : Prop) := P ∧ Q ∨ Q ∧ R ∨ P ∧ R
+
+lemma Maj_perm_132 {P Q R : Prop} : Maj P Q R <-> Maj P R Q := by
+  unfold Maj; tauto
+
+lemma Maj_perm_321 {P Q R : Prop} : Maj P Q R <-> Maj R Q P := by
+  unfold Maj; tauto
+
+lemma Maj_perm_213 {P Q R : Prop} : Maj P Q R <-> Maj Q P R := by
+  unfold Maj; tauto
+
+lemma Maj_perm_231 {P Q R : Prop} : Maj P Q R <-> Maj R P Q := by
+  unfold Maj; tauto
+
+lemma Maj_false {P Q R : Prop} : ¬ P -> (Maj P Q R <-> Q ∧ R) := by
+  intro h
+  unfold Maj
+  tauto
+
+lemma Maj_true {P Q R : Prop} : P -> (Maj P Q R <-> Q ∨ R) := by
+  intro h
+  unfold Maj
+  tauto
 
 open IDelta0Model
 
@@ -865,35 +891,358 @@ lemma mem_succ_iff_xor_prefix :
           exact h
     exact (ax_succ (X := Z) (i := i)).2 ⟨h_le, h_cases⟩
 
-lemma prefix_carry_lemma :
-    ∀ {X Y : str} {i : num},
-      (∀ j < i, j ∈ (X + Y)) ↔
-        Xor' (∀ j < i, j ∈ Y) (Xor' (Carry i X Y) (Carry i X (succ Y))) := by
+
+lemma in_iff_not_notin {X : str} {j : num} : j ∈ X ↔ ¬ j ∉ X := by
+  rw [not_not]
+
+def LowestOrderZero (X : str) (m : num) := m ≤ len X ∧ m ∉ X ∧ ∀ j < m, j ∈ X
+
+lemma exists_lowest_order_zero (X : str) : ∃ m : num, LowestOrderZero X m := by
+  obtain ⟨X', hX'⟩ := comp10 X (len X + (1 : num))
+  have len_X'_ne_zero : (0 : num) < len X' := by
+    have lenX_in_X' : (len X) ∈ X' := by
+      rw [hX'.2]
+      · exact len_not_in
+      · exact lt_succ (len X)
+    apply @lt_of_le_of_lt _ _ _ (len X)
+    · exact B9 (len X)
+    · exact L1 lenX_in_X'
+
+  obtain ⟨min, hmin⟩ := xmin len_X'_ne_zero
+  exists min
+
+  have min_le_lenx : min <= len X := by
+    rw [B11]
+    apply lt_of_lt_of_le
+    · exact hmin.1
+    · exact hX'.1
+
+  constructor
+  · have aux := L1 hmin.2.1
+    assumption
+  · constructor
+    · rw [<- hX'.2]
+      exact hmin.2.1
+      rw [<- B11]
+      assumption
+    · intro j hj
+      rw [@in_iff_not_notin]
+      rw [<- hX'.2]
+      · apply hmin.2.2
+        exact hj
+      · rw [<- B11]
+        apply le_of_lt
+        apply lt_of_lt_of_le
+        · assumption
+        · assumption
+
+def LowestOrderOne (X : str) (m : num) := m ≤ len X ∧ m ∈ X ∧ ∀ j < m, j ∉ X
+
+lemma exists_lowest_order_one {X : str} : (0 : num) < len X -> ∃ m : num, LowestOrderOne X m := by
+  intro len_ne_zero
+  obtain ⟨min, hmin⟩ := xmin len_ne_zero
+  exists min
+  constructor
+  apply le_of_lt; exact hmin.1
+  exact hmin.2
+
+
+lemma succ_bit_eq {X : str} {m : num} : LowestOrderZero X m -> m ∈ succ X := by
+  sorry
+
+lemma succ_bit_lt {X : str} {m : num} : LowestOrderZero X m -> ∀ i < m, i ∉ succ X := by
+  sorry
+
+lemma succ_bit_gt {X : str} {m : num} : LowestOrderZero X m -> ∀ i > m, i ∈ succ X ↔ i ∈ X := by
+  sorry
+
+lemma split_wrt_minmax (x y z : num) :
+    x < min y z ∨
+    x = min y z ∨
+    (min y z < x ∧ x < max y z) ∨
+    x = max y z ∨
+    max y z < x := by
+  rcases lt_trichotomy x (min y z) with h | h | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · rcases lt_trichotomy x (max y z) with hx | hx | hx
+    · exact Or.inr (Or.inr (Or.inl ⟨h, hx⟩))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl hx)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr hx)))
+
+lemma xor_assoc {a b c} : Xor' a (Xor' b c) = Xor' (Xor' a b) c := by
+  unfold Xor'
+  grind only [cases Or]
+
+lemma aux1 : ∀ {X : str}, ∀ {y min : num},
+  LowestOrderZero X min -> y < min -> y ∈ X := by
+  sorry
+
+lemma len_pos_of_exists : ∀ {i : num} {X : str}, i ∈ X -> len X > (0 : num) := by
+  intro i X iX
+  apply lt_of_le_of_lt
+  apply zero_le i
+  apply L1
+  assumption
+
+lemma len_succ_pos : ∀ {X : str}, len (succ X) > (0 : num) := by
+  intro X
+  obtain ⟨min, hmin⟩ := exists_lowest_order_zero X (num := num)
+  have min_X := succ_bit_eq hmin
+  apply len_pos_of_exists min_X
+
+lemma lsb_not_succ : ∀ {X : str}, 0 ∈ X <-> 0 ∉ (succ X) := by
+  intro X
+  constructor
+  · intro h contr
+    rw [ax_succ] at contr
+    rcases contr with ⟨hlen, hcases⟩
+    rcases hcases with hbad | hgood
+    · rcases hbad with ⟨hin, j, hj_lt, hj_notin⟩
+      apply not_lt_zero (x := j)
+      assumption
+    · apply hgood.1; assumption
+  · intro h
+    rw [ax_succ] at h
+    simp only [zero_le, peano.instLTOfStructure, not_le, nonpos_iff_eq_zero, not_lt_zero',
+      and_false, false_and, exists_const, IsEmpty.forall_iff, implies_true, and_true, false_or,
+      true_and, not_not] at h
+    assumption
+
+lemma exists_complement : ∀ X : str, ∃ Y : str, ∀ z : num, z < len X -> (z ∈ Y ↔ z ∉ X) := by
   sorry
 
 lemma add_succ_of_succ_add : ∀ {X Y : str}, ∀ {y : num}, y ∈ succ (X + Y) -> y ∈ X + succ Y := by
   intro X Y y hy
 
+  by_cases y = 0
+  · rename_i h
+    rw [h] at hy
+    rw [ax_succ] at hy
+    cases hy.2 with
+    | inl hy =>
+      exfalso
+      obtain ⟨j, hj⟩ := hy.2
+      apply not_lt_zero (num := num) (x := j)
+      apply hj.1
+    | inr hy_not =>
+      rw [h, ax_add]
+      constructor
+      · by_cases X = 0
+        · rename_i X0
+          rw [X0, len_empty, _root_.zero_add]
+          apply len_succ_pos
+        · refine add_pos_of_nonneg_of_pos ?_ ?_
+          · exact B9 (len X)
+          · apply len_succ_pos
+      · rw [xor_comm]
+        rw [<- xor_not_not]
+        left
+        constructor
+        · apply carry_rec.1
+          assumption
+        · rw [not_not]
+          rw [@xor_iff_iff_not]
+          rw [ax_add] at hy_not
+          simp only [peano.instLTOfStructure, not_le, zero_le, add_pos_iff, true_and, not_and,
+            not_xor, nonpos_iff_eq_zero, not_lt_zero', and_false, IsEmpty.forall_iff, implies_true,
+            and_true] at hy_not
+
+          rw [iff_false_right (carry_rec (i := y)).1] at hy_not
+
+          constructor
+          · intro X0
+            specialize hy_not (by
+              left
+              apply L1
+              assumption
+            )
+            simp only [not_xor] at hy_not
+            rw [<- lsb_not_succ]
+            rw [<- hy_not]
+            assumption
+          · intro succY0
+            specialize hy_not (by
+              right
+              rw [<- lsb_not_succ] at succY0
+              apply L1
+              assumption
+            )
+            simp only [not_xor] at hy_not
+            rw [hy_not]
+            exact lsb_not_succ.mpr succY0
+
+  rename_i y_ne_zero
+  obtain ⟨pred_y, hpred_y_le, hpred_y_eq⟩ := B12 y_ne_zero
+
+  obtain ⟨minXY, hminXY⟩ := exists_lowest_order_zero (X + Y) (num := num)
+  obtain ⟨minY, hminY⟩ := exists_lowest_order_zero Y (num := num)
 
   rw [ax_succ] at hy
-  obtain ⟨y_le, y_cond⟩ := hy
-  cases y_cond with
-  | inl y_cond =>
-    rw [ax_add] at y_cond
-    obtain ⟨⟨y_lt, y_xor⟩, y_prefix⟩ := y_cond
-    cases y_xor with
-    | inl y_xor =>
-      obtain ⟨h_xy, not_carry⟩ := y_xor
-      cases h_xy with
-      | inl h_x =>
+  obtain ⟨_, y_or⟩ := hy
+
+  rcases split_wrt_minmax y minY minXY with h | h | h | h | h
+  · exfalso
+    cases y_or with
+    | inl h =>
+      obtain ⟨_, j, j_lt, j_notin⟩ := h
+      apply j_notin
+      apply aux1 hminXY
+      apply lt_trans
+      · exact j_lt
+      · exact (lt_min_iff.mp h).2
+    | inr h =>
+      obtain ⟨y_notin, _⟩ := h
+      apply y_notin
+      apply aux1 hminXY
+      exact (lt_min_iff.mp h).2
+  · symm at h
+    rw [min_eq_iff] at h
+    cases h with
+    | inl y_minY =>
+      have y_succY : y ∈ succ Y := by
+        unfold LowestOrderZero at hminY
+        rw [ax_succ]
+        constructor
+        · rw [<- y_minY.1]
+          exact hminY.1
+        · right
+          rw [<- y_minY.1]
+          exact hminY.2
+
+      have yY : y ∉ Y := by
+        unfold LowestOrderZero at hminY
+        rw [y_minY.1.symm]
+        exact hminY.2.1
+
+      have y_XY : y ∈ X + Y ↔ y ∈ X := by
+        unfold LowestOrderZero at hminXY
+        cases (le_iff_eq_or_lt.mp y_minY.2) with
+        | inl YeqXY =>
+          have y_XY : y ∉ X + Y := by
+            rw [y_minY.1.symm, YeqXY]
+            exact hminXY.2.1
+          cases y_or with
+          | inl contr =>
+            exfalso; apply y_XY; exact contr.1
+          | inr contr1 =>
+            constructor
+            · intro contr2
+              exfalso; apply contr1.1; apply contr2
+            · intro yX
+              rw [ax_add]
+              constructor
+              · sorry
+              · rw [<- xor_assoc]
+                left
+                constructor
+                exact yX
+                rw [not_xor]
+                constructor
+                · intro contr; exfalso; apply yY; exact contr
+                · intro contr;
+                  -- that Carry y X Y had nothing to come from
+                  obtain ⟨X', h_X'⟩ := exists_complement X (num := num)
+                  have h := xind (num := num) (z := y) (X := X')
+                  specialize h (by
+                    rw [h_X']
+                    · intro contr
+                      apply (carry_rec (X := X) (Y := Y) (i := pred_y)).1
+                      have aux := hminXY.2.2 0 ?_
+                      · rw [ax_add] at aux
+                        rcases aux.2 with ha | hb
+                        · exfalso
+                          rcases ha.1 with contr1 | contr2
+                          · apply contr1.2; rw [LowestOrderZero] at hminY; apply hminY.2.2
+                            sorry
+                          · apply contr2.2; assumption
+                        · exact hb.1
+                      · sorry
+                    · -- has to be true because carry was from somewhere
+                      sorry
+                  )
+
+                  specialize h (by
+                    intro y1 y1_lt y1_in
+
+                    have y1_no_carry : ¬ Carry y1 X Y := by
+                      intro contr
+                      have aux : y1 ∉ X + Y := by
+                        rw [ax_add]
+                        simp only [peano.instLTOfStructure, not_le, not_and, not_xor, and_imp]
+                        intro _ _
+                        rw [iff_true_right contr]
+                        conv => lhs; rw [in_iff_not_notin]
+                        rw [xor_not_left]
+                        constructor
+                        · intro; apply hminY.2.2; rw [y_minY.1]; exact y1_lt
+                        · intro; rw [<- h_X']; exact y1_in
+                          sorry
+                      apply aux
+                      rw [ax_add]; constructor
+                      · sorry
+                      · rw [xor_comm]
+                        constructor
+                        · constructor; assumption
+                          rw [not_xor, in_iff_not_notin, <- h_X']
+                          rw [iff_true_left]
 
 
-  rw [ax_add]
-  constructor
-  · sorry
+                    by_cases y1 + 1 = y
+                    · rename_i heq
+                      rw [heq, h_X']
+                      rw [heq.symm, carry_rec.2] at contr
+                      rcases contr with ha | hb | hc
+                      ·
+                  )
+
+                  rw [<- hpred_y_eq, carry_rec.2] at contr
+
+                  have predy_Y : pred_y ∈ Y := by
+                    apply hminY.2.2
+                    rw [y_minY.1]
+                    rw [lt_iff_le_and_ne]
+                    constructor; assumption
+                    rw [← hpred_y_eq]
+                    exact IOPENModel.ne_succ pred_y
+
+                  rw [Maj_perm_231, Maj_true predy_Y] at contr
+
+                  cases contr with
+                  | inl contr =>
+                    have aux : Carry y X Y := by
+                      rw [<- hpred_y_eq]
+                      rw [carry_rec.2]
+                      rw [Maj_true contr]
+                      right; assumption
+
+                  | inr h =>
+                    sorry
 
 
 
+
+
+      rw [ax_add]
+      constructor
+      · sorry
+      · conv => lhs; rw [xor_comm]
+        rw [<- xor_assoc]
+        simp only [y_succY, xor_true, not_xor]
+
+        unfold Carry
+        rw [xor_true]
+
+
+      sorry
+
+
+  rcases lt_trichotomy y minXY with y_lt_XY | y_eq_XY | XY_lt_y
+  ·
+  ·
+
+    rcases lt_trichotomy minY minXY with Y_lt_XY | Y_eq_XY | XY_lt_Y
+    ·
 
 
 
