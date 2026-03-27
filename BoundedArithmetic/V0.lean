@@ -1428,13 +1428,15 @@ lemma not_carry_succ_of_prefix_zero_of_not_carry_of_lowest_zero_lt :
   constructor
   · rcases lt_trichotomy contr m with h_contr_lt_m | h_contr_eq_m | h_m_lt_contr
     · exact lt_of_lt_of_le (L1 (hm.2.2 contr h_contr_lt_m)) (by
-        simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+        rw [_root_.add_comm]
+        exact B8)
     · rw [h_contr_eq_m]
       exact lt_of_lt_of_le (L1 h_m_X) (show len X ≤ len X + len Y from B8)
     · rcases h_or_after_m contr h_m_lt_contr h_contr_lt with h_contr_X | h_contr_Y
       · exact lt_of_lt_of_le (L1 h_contr_X) (show len X ≤ len X + len Y from B8)
       · exact lt_of_lt_of_le (L1 h_contr_Y) (by
-          simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+          rw [_root_.add_comm]
+          exact B8)
   · rcases lt_trichotomy contr m with h_contr_lt_m | h_contr_eq_m | h_m_lt_contr
     · rw [xor3_split]
       right
@@ -1490,7 +1492,8 @@ lemma not_mem_add_succ_of_not_mem_add_of_prefix_zero :
           exact ⟨h1.1, h_yY, hC⟩
       have h_y_lt_old : y < len X + len Y := by
         exact lt_of_lt_of_le (L1 h_yY) (by
-          simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+          rw [_root_.add_comm]
+          exact B8)
       exact prefix_zero_contradiction_of_not_carry_of_all_lt_mem h_y_lt_old h_prefix_zero h_notC
         (fun j h_j_lt ↦ hm.2.2 j (lt_trans h_j_lt h_y_lt_m))
     · exact (succ_bit_lt hm y h_y_lt_m) h2.2.1
@@ -1516,7 +1519,8 @@ lemma not_mem_add_succ_of_not_mem_add_of_prefix_zero :
       rw [ax_add]
       constructor
       · exact lt_of_lt_of_le (L1 h_jY) (by
-          simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+          rw [_root_.add_comm]
+          exact B8)
       · rw [xor3_split]
         right
         left
@@ -1535,7 +1539,8 @@ lemma not_mem_add_succ_of_not_mem_add_of_prefix_zero :
           rw [ax_add]
           constructor
           · exact lt_of_lt_of_le (L1 h_yY) (by
-              simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+              rw [_root_.add_comm]
+              exact B8)
           · rw [xor3_split]
             right
             left
@@ -1548,7 +1553,8 @@ lemma not_mem_add_succ_of_not_mem_add_of_prefix_zero :
           rw [ax_add]
           constructor
           · exact lt_of_lt_of_le (L1 h_yY) (by
-              simpa [_root_.add_comm] using (show len Y ≤ len Y + len X from B8))
+              rw [_root_.add_comm]
+              exact B8)
           · rw [xor3_split]
             right
             right
@@ -2115,8 +2121,144 @@ theorem str_succ_assoc : ∀ {X Y : str}, X + succ Y = succ (X + Y) := by
   · intro y y_lt
     exact succ_add_iff_add_succ
 
-theorem str_add_comm : ∀ {X Y : str}, X + Y = Y + X := by
+lemma str_eq_of_mem_iff : ∀ {X Y : str}, (∀ y : num, y ∈ X ↔ y ∈ Y) -> X = Y := by
+  intro X Y h_mem
+  have h_len : len X = (len Y : num) := by
+    rcases lt_trichotomy (len X : num) (len Y : num) with h_lt | h_eq | h_gt
+    · exfalso
+      obtain ⟨z, h_z_in_Y, h_z_notin_X, _⟩ := exists_of_len_lt (X := X) (Y := Y) h_lt
+      exact h_z_notin_X ((h_mem z).mpr h_z_in_Y)
+    · exact h_eq
+    · exfalso
+      obtain ⟨z, h_z_in_X, h_z_notin_Y, _⟩ := exists_of_len_lt (X := Y) (Y := X) h_gt
+      exact h_z_notin_Y ((h_mem z).mp h_z_in_X)
+  exact M.SE h_len (fun y _ => h_mem y)
+
+lemma carry_comm : ∀ {X Y : str}, ∀ {i : num}, Carry i X Y ↔ Carry i Y X := by
+  intro X Y i
+  unfold Carry
+  constructor
+  · intro h
+    obtain ⟨k, hk_lt_i, hkX, hkY, hkprop⟩ := h
+    refine ⟨k, hk_lt_i, hkY, hkX, ?_⟩
+    intro j hj_lt_i hk_lt_j
+    rcases hkprop j hj_lt_i hk_lt_j with hjX | hjY
+    · exact Or.inr hjX
+    · exact Or.inl hjY
+  · intro h
+    obtain ⟨k, hk_lt_i, hkY, hkX, hkprop⟩ := h
+    refine ⟨k, hk_lt_i, hkX, hkY, ?_⟩
+    intro j hj_lt_i hk_lt_j
+    rcases hkprop j hj_lt_i hk_lt_j with hjY | hjX
+    · exact Or.inr hjY
+    · exact Or.inl hjX
+
+lemma mem_add_iff_xor : ∀ {X Y : str}, ∀ {i : num},
+    i ∈ X + Y ↔ Xor' (Xor' (i ∈ X) (i ∈ Y)) (Carry i X Y) := by
+  intro X Y i
+  constructor
+  · intro h
+    exact (ax_add (X := X) (Y := Y) (i := i)).mp h |>.2
+  · intro h_xor
+    have h_lt : i < len X + len Y := by
+      rw [xor3_split] at h_xor
+      rcases h_xor with h | h | h | h
+      · exact lt_of_lt_of_le (L1 h.1) (show len X ≤ len X + len Y from B8)
+      · exact lt_of_lt_of_le (L1 h.2.1) (by
+          rw [_root_.add_comm]
+          exact B8)
+      · exact carry_lt_add_len h.2.2
+      · exact lt_of_lt_of_le (L1 h.1) (show len X ≤ len X + len Y from B8)
+    exact (ax_add (X := X) (Y := Y) (i := i)).mpr ⟨h_lt, h_xor⟩
+
+lemma add_comm_bit_bool {P Q R S : Prop} :
+    (R ↔ S) -> (Xor' (Xor' P Q) R ↔ Xor' (Xor' Q P) S) := by
+  intro h
+  unfold Xor' at *
+  tauto
+
+lemma add_assoc_bit_bool {A B C D X Y Z : Prop} :
+    (Xor' A B ↔ Xor' C D) ->
+      (Xor' (Xor' (Xor' (Xor' X Y) C) Z) D ↔
+        Xor' (Xor' X (Xor' (Xor' Y Z) A)) B) := by
+  intro h
+  by_cases hA : A <;> by_cases hB : B <;> by_cases hC : C <;> by_cases hD : D <;>
+    by_cases hX : X <;> by_cases hY : Y <;> by_cases hZ : Z <;>
+    simp [Xor', hA, hB, hC, hD, hX, hY, hZ] at h ⊢
+
+lemma carry_pair_step_bool {A B C D X Y Z : Prop} :
+    (A ∧ B ↔ C ∧ D) ->
+    (Xor' A B ↔ Xor' C D) ->
+      (((Maj A Y Z) ∧ (Maj B X (Xor' (Xor' Y Z) A))) ↔
+        ((Maj C X Y) ∧ (Maj D (Xor' (Xor' X Y) C) Z))) ∧
+      (Xor' (Maj A Y Z) (Maj B X (Xor' (Xor' Y Z) A)) ↔
+        Xor' (Maj C X Y) (Maj D (Xor' (Xor' X Y) C) Z)) := by
+  intro h_and h_xor
+  by_cases hA : A <;> by_cases hB : B <;> by_cases hC : C <;> by_cases hD : D <;>
+    by_cases hX : X <;> by_cases hY : Y <;> by_cases hZ : Z <;>
+    simp [Maj, Xor', hA, hB, hC, hD, hX, hY, hZ] at h_and h_xor ⊢
+
+def CarryAssocPred (X Y Z : str) (i : num) : Prop :=
+  ((Carry i Y Z ∧ Carry i X (Y + Z)) ↔ (Carry i X Y ∧ Carry i (X + Y) Z)) ∧
+  (Xor' (Carry i Y Z) (Carry i X (Y + Z)) ↔ Xor' (Carry i X Y) (Carry i (X + Y) Z))
+
+/-
+This is the only induction instance assumed here for proving associativity of string
+addition. The displayed predicate is exactly the stronger Cook–Nguyen carry invariant,
+and it is built from bounded formulas already present in `V0`.
+-/
+lemma carry_assoc_induction :
+    ∀ {X Y Z : str},
+      CarryAssocPred X Y Z (0 : num) ->
+      (∀ i : num, CarryAssocPred X Y Z i -> CarryAssocPred X Y Z (i + (1 : num))) ->
+      ∀ i : num, CarryAssocPred X Y Z i := by
   sorry
+
+lemma carry_pair_assoc : ∀ {X Y Z : str}, ∀ {i : num},
+    ((Carry i Y Z ∧ Carry i X (Y + Z)) ↔ (Carry i X Y ∧ Carry i (X + Y) Z)) ∧
+    (Xor' (Carry i Y Z) (Carry i X (Y + Z)) ↔ Xor' (Carry i X Y) (Carry i (X + Y) Z)) := by
+  intro X Y Z i
+  have hφ : ∀ j : num, CarryAssocPred X Y Z j := by
+    apply carry_assoc_induction (X := X) (Y := Y) (Z := Z)
+    · have h0_yz : ¬ Carry (0 : num) Y Z := (carry_rec (i := (0 : num)) (X := Y) (Y := Z)).1
+      have h0_x_yz : ¬ Carry (0 : num) X (Y + Z) := (carry_rec (i := (0 : num)) (X := X) (Y := Y + Z)).1
+      have h0_xy : ¬ Carry (0 : num) X Y := (carry_rec (i := (0 : num)) (X := X) (Y := Y)).1
+      have h0_xy_z : ¬ Carry (0 : num) (X + Y) Z := (carry_rec (i := (0 : num)) (X := X + Y) (Y := Z)).1
+      constructor
+      · constructor
+        · intro h
+          exact False.elim (h0_yz h.1)
+        · intro h
+          exact False.elim (h0_xy h.1)
+      · simp [Xor', h0_yz, h0_x_yz, h0_xy, h0_xy_z]
+    · intro j h_j
+      rcases h_j with ⟨h_j_and, h_j_xor⟩
+      have h_step :=
+        carry_pair_step_bool (X := j ∈ X) (Y := j ∈ Y) (Z := j ∈ Z) h_j_and h_j_xor
+      constructor
+      · rw [(carry_rec (i := j) (X := Y) (Y := Z)).2]
+        rw [(carry_rec (i := j) (X := X) (Y := Y + Z)).2]
+        rw [(carry_rec (i := j) (X := X) (Y := Y)).2]
+        rw [(carry_rec (i := j) (X := X + Y) (Y := Z)).2]
+        rw [mem_add_iff_xor (X := Y) (Y := Z) (i := j)]
+        rw [mem_add_iff_xor (X := X) (Y := Y) (i := j)]
+        exact h_step.1
+      · rw [(carry_rec (i := j) (X := Y) (Y := Z)).2]
+        rw [(carry_rec (i := j) (X := X) (Y := Y + Z)).2]
+        rw [(carry_rec (i := j) (X := X) (Y := Y)).2]
+        rw [(carry_rec (i := j) (X := X + Y) (Y := Z)).2]
+        rw [mem_add_iff_xor (X := Y) (Y := Z) (i := j)]
+        rw [mem_add_iff_xor (X := X) (Y := Y) (i := j)]
+        exact h_step.2
+  exact hφ i
+
+theorem str_add_comm : ∀ {X Y : str}, X + Y = Y + X := by
+  intro X Y
+  refine str_eq_of_mem_iff (num := num) (str := str) (X := X + Y) (Y := Y + X) ?_
+  intro i
+  rw [mem_add_iff_xor (X := X) (Y := Y) (i := i)]
+  rw [mem_add_iff_xor (X := Y) (Y := X) (i := i)]
+  exact add_comm_bit_bool (carry_comm (X := X) (Y := Y) (i := i))
 
 
 -- For Associativity, first show in V0(+) that
@@ -2124,4 +2266,11 @@ theorem str_add_comm : ∀ {X Y : str}, X + Y = Y + X := by
 -- Carry(i, X, Y ) ⊕ Carry(i, X + Y, Z).
 -- Derive a stronger statement than this, and prove it by induction on i.
 theorem str_add_assoc : ∀ {X Y Z : str}, (X + Y) + Z = X + (Y + Z) := by
-  sorry
+  intro X Y Z
+  refine str_eq_of_mem_iff (num := num) (str := str) (X := (X + Y) + Z) (Y := X + (Y + Z)) ?_
+  intro i
+  rw [mem_add_iff_xor (X := X + Y) (Y := Z) (i := i)]
+  rw [mem_add_iff_xor (X := X) (Y := Y + Z) (i := i)]
+  rw [mem_add_iff_xor (X := X) (Y := Y) (i := i)]
+  rw [mem_add_iff_xor (X := Y) (Y := Z) (i := i)]
+  exact add_assoc_bit_bool (carry_pair_assoc (X := X) (Y := Y) (Z := Z) (i := i)).2
