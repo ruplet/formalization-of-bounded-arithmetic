@@ -545,6 +545,24 @@ where
   ax_add : ∀ {X Y : str}, ∀ {i : num}, i ∈ X + Y ↔
     (i < len X + len Y ∧ (Xor' (Xor' (i ∈ X) (i ∈ Y)) (Carry i X Y)))
 
+
+
+namespace Xor'
+
+lemma true1 {P Q R : Prop} : P -> (Xor' (Xor' P Q) R <-> ¬ Xor' Q R) := by
+  unfold Xor'
+  tauto
+
+lemma true2 {P Q R : Prop} : Q -> (Xor' (Xor' P Q) R <-> ¬ Xor' P R) := by
+  unfold Xor'
+  tauto
+
+lemma true3 {P Q R : Prop} : R -> (Xor' (Xor' P Q) R <-> ¬ Xor' P Q) := by
+  unfold Xor'
+  tauto
+
+end Xor'
+
 -- Exercise V.4.19
 
 -- namespace V0ExtModel
@@ -573,7 +591,7 @@ lemma not_carry_empty : ∀ {X : str}, ∀ {i : num}, ¬Carry i X 0 := by
   obtain ⟨_, _, _, bad, _⟩ := h
   exact ax_empty' bad
 
-def Maj (P Q R : Prop) := P ∧ Q ∨ Q ∧ R ∨ P ∧ R
+def Maj (P Q R : Prop) := (P ∧ Q ∧ ¬ R) ∨ (P ∧ ¬ Q ∧ R) ∨ (¬ P ∧ Q ∧ R) ∨ (P ∧ Q ∧ R)
 
 lemma Maj_perm_132 {P Q R : Prop} : Maj P Q R <-> Maj P R Q := by
   unfold Maj; tauto
@@ -592,10 +610,20 @@ lemma Maj_false {P Q R : Prop} : ¬ P -> (Maj P Q R <-> Q ∧ R) := by
   unfold Maj
   tauto
 
-lemma Maj_true {P Q R : Prop} : P -> (Maj P Q R <-> Q ∨ R) := by
+lemma Maj_true1 {P Q R : Prop} : P -> (Maj P Q R <-> Q ∨ R) := by
   intro h
   unfold Maj
   tauto
+lemma Maj_true2 {P Q R : Prop} : Q -> (Maj P Q R <-> P ∨ R) := by
+  intro h
+  unfold Maj
+  tauto
+lemma Maj_true3 {P Q R : Prop} : R -> (Maj P Q R <-> P ∨ Q) := by
+  intro h
+  unfold Maj
+  tauto
+
+
 
 open IDelta0Model
 
@@ -624,6 +652,27 @@ by
     exact hji
     exact hcj
 
+lemma not_lt_self : ∀ (i : num), ¬ i < i := by
+  intro i h
+  rw [<- lt_self_iff_false i]
+  exact h
+
+lemma carry_rec2 : ∀ {X Y : str}, ∀ {i : num},
+  i ∈ X ∧ i ∈ Y -> Carry (i + 1) X Y :=
+by
+  intro X Y i h_XY
+  obtain ⟨h_X, h_Y⟩ := h_XY
+  unfold Carry
+  exists i
+  constructor
+  · exact lt_succ i
+  · constructor; assumption
+    constructor; assumption
+    intro j hj hi
+    rw [<- B11] at hj
+    exfalso
+    apply not_lt_self i
+    exact lt_of_lt_of_le hi hj
 
 -- Exercise V.4.18
 lemma carry_rec : ∀ {X Y : str}, ∀ {i : num},
@@ -638,45 +687,45 @@ lemma carry_rec : ∀ {X Y : str}, ∀ {i : num},
       obtain ⟨pos, lt, inX, inY, prevs⟩ := h
       by_cases h_pos : i = pos
       · rw [h_pos]
-        right; left; constructor <;> assumption
+        unfold Maj
+        right; right
+        rw [<- or_and_right]
+        constructor
+        · exact em' (Carry pos X Y)
+        · constructor <;> assumption
       · rw [<- B11] at lt
         have hlt : pos < i := lt_of_le_of_ne lt (Ne.symm h_pos)
         clear h_pos lt
         have h_pos := prevs i (by rw [<- B11]) hlt
-        unfold Maj
-        suffices demorgan : (Carry i X Y ∧ (i ∈ X ∨ i ∈ Y))
-        · cases demorgan.2 with
-          | inl =>
-            left; constructor; exact demorgan.1; assumption
-          | inr =>
-            right; right; constructor; exact demorgan.1; assumption
-        · symm; constructor; exact h_pos
+        rcases h_pos with h_iX | h_iY
+        · rw [Maj_true2 h_iX]
+          left
+          unfold Carry
           exists pos
-          constructor; exact hlt
-          constructor; exact inX
-          constructor; exact inY
-          intro j hj; apply prevs j
+          constructor; assumption
+          constructor; assumption
+          constructor; assumption
+          intro j hj
+          apply prevs
           apply lt_trans hj
-          rw [<- B11]
+          exact lt_succ i
+        · rw [Maj_true3 h_iY]
+          left
+          unfold Carry
+          exists pos
+          constructor; assumption
+          constructor; assumption
+          constructor; assumption
+          intro j hj
+          apply prevs
+          apply lt_trans hj
+          exact lt_succ i
     · intro h
-      cases h with
-      | inl h =>
-        refine carry_rec1 h.1 (.inl h.2)
-      | inr h =>
-        cases h with
-        | inl h =>
-          exists i
-          constructor; rw [<- B11]
-          constructor; exact h.1
-          constructor; exact h.2
-          intro j hj hij
-          exfalso
-          have h := lt_iff_succ_le.mp hij
-          have h2 := B7 h hj.1
-          apply hj.2
-          exact h
-        | inr h =>
-          refine carry_rec1 h.1 (.inr h.2)
+      rcases h with ⟨hC, hX, _⟩ | ⟨hC, _, hY⟩ | h_notCarry | h_all
+      · apply carry_rec1 hC (.inl hX)
+      · apply carry_rec1 hC (.inr hY)
+      · apply carry_rec2 h_notCarry.2
+      · apply carry_rec2 h_all.2
 
 lemma exists_of_len_lt : ∀ {X Y : str}, (len X : num) < len Y -> ∃ z, z ∈ Y ∧ z ∉ X ∧ z + 1 = len Y := by
   intro X Y h_lt
@@ -1012,6 +1061,41 @@ lemma lsb_not_succ : ∀ {X : str}, 0 ∈ X <-> 0 ∉ (succ X) := by
 lemma exists_complement : ∀ X : str, ∃ Y : str, ∀ z : num, z < len X -> (z ∈ Y ↔ z ∉ X) := by
   sorry
 
+
+lemma xor3_split {P Q R : Prop} : Xor' (Xor' P Q) R <-> (P ∧ ¬Q ∧ ¬R) ∨ (¬ P ∧ Q ∧ ¬ R) ∨ (¬ P ∧ ¬ Q ∧ R) ∨ (P ∧ Q ∧ R) := by
+  unfold Xor'; tauto
+
+lemma not_maj {P Q R : Prop} : ¬ Maj P Q R <-> (¬ P ∧ ¬ Q ∧ R) ∨ (P ∧ ¬ Q ∧ ¬ R) ∨ (¬ P ∧ Q ∧ ¬ R) ∨ (¬ P ∧ ¬ Q ∧ ¬ R) := by
+  unfold Maj; tauto
+
+
+lemma all_lt_mem_of_not_mem_of_mem_succ : ∀ {X : str} {i : num}, i ∉ X -> i ∈ succ X -> ∀ j < i, j ∈ X := by
+  intro X i h_i_notX h_i_SX
+  rw [ax_succ] at h_i_SX
+  rcases h_i_SX with ⟨h_i_le, ⟨h_i_X, ex⟩ | ⟨h_i_notX, all⟩⟩
+  · exact fun j a ↦ False.elim (h_i_notX h_i_X)
+  · exact all
+
+lemma all_lt_not_mem_of_not_carry_of_all_lt_mem : ∀ {X Y : str} {i : num}, ¬ Carry i X Y -> (∀ j < i, j ∈ Y) -> ∀ j < i, j ∉ X := by
+  intro X Y i h_Carry h_all_lt_mem_Y
+  unfold Carry at h_Carry
+  rw [not_exists] at h_Carry
+  intro j
+  specialize h_Carry j
+  rw [not_and_or] at h_Carry
+  rcases h_Carry with contr | h_Carry
+  · intro contr'
+    contradiction
+  · intro h_j_lt_i h_j_X
+    rw [not_and] at h_Carry
+    specialize h_Carry h_j_X
+    rw [not_and] at h_Carry
+    specialize h_Carry (h_all_lt_mem_Y j h_j_lt_i)
+    apply h_Carry; clear h_Carry; intro z z_lt j_lt
+    right
+    exact h_all_lt_mem_Y z z_lt
+
+
 lemma add_succ_of_succ_add : ∀ {X Y : str}, ∀ {y : num}, y ∈ succ (X + Y) -> y ∈ X + succ Y := by
   intro X Y y hy
 
@@ -1074,32 +1158,152 @@ lemma add_succ_of_succ_add : ∀ {X Y : str}, ∀ {y : num}, y ∈ succ (X + Y) 
 
   rename_i y_ne_zero
   obtain ⟨pred_y, hpred_y_le, hpred_y_eq⟩ := B12 y_ne_zero
-
-  obtain ⟨minXY, hminXY⟩ := exists_lowest_order_zero (X + Y) (num := num)
-  obtain ⟨minY, hminY⟩ := exists_lowest_order_zero Y (num := num)
+  -- obtain ⟨minXY, hminXY⟩ := exists_lowest_order_zero (X + Y) (num := num)
+  -- obtain ⟨minY, hminY⟩ := exists_lowest_order_zero Y (num := num)
 
   rw [ax_succ] at hy
-  obtain ⟨_, y_or⟩ := hy
+  obtain ⟨_t, y_or⟩ := hy
+  clear _t
+  rcases y_or with ⟨h_y_in_add, h_prefix_zero⟩ | ⟨h_y_notin_add, h_prefix_one⟩
+  · rw [ax_add]
+    constructor
+    · rw [ax_add] at h_y_in_add
+      apply lt_of_lt_of_le h_y_in_add.1
+      apply _root_.add_le_add_left
+      exact len_le_len_succ
 
-  rcases split_wrt_minmax y minY minXY with h | h | h | h | h
-  · exfalso
-    cases y_or with
-    | inl h =>
-      obtain ⟨_, j, j_lt, j_notin⟩ := h
-      apply j_notin
-      apply aux1 hminXY
-      apply lt_trans
-      · exact j_lt
-      · exact (lt_min_iff.mp h).2
-    | inr h =>
-      obtain ⟨y_notin, _⟩ := h
-      apply y_notin
-      apply aux1 hminXY
-      exact (lt_min_iff.mp h).2
+    conv at h_y_in_add =>
+      rw [<- hpred_y_eq]
+      rw [ax_add]
+      rw [hpred_y_eq]
+    rcases h_y_in_add with ⟨h_y_lt, hxor⟩
+    rw [xor3_split] at hxor
+    rcases hxor with ⟨h_X, h_notY, h_notC⟩ | ⟨h_notX, h_Y, h_notC⟩ | ⟨h_notX, h_notY, h_C⟩ | ⟨h_X, h_Y, h_C⟩
+    · rw [Xor'.true1 h_X]
+      rw [not_xor]
+      constructor
+      · intro h_SY
+        -- Now, this is impossible for any `j < y` to `j ∉ X + Y`.
+        exfalso
+
+        have h_Y_prefix_one := all_lt_mem_of_not_mem_of_mem_succ h_notY h_SY
+        have h_X_prefix_zero := all_lt_not_mem_of_not_carry_of_all_lt_mem h_notC h_Y_prefix_one
+        have h_Carry_prefix_zero : ∀ j < y, ¬ Carry j X Y := by
+          intro j h_j_lt h_Carry
+          unfold Carry at h_Carry
+          obtain ⟨contr, h_contr_lt, h_contr_X, _, _⟩ := h_Carry
+          have h_contr_lt_y : contr < y := lt_trans h_contr_lt h_j_lt
+          exact h_X_prefix_zero contr h_contr_lt_y h_contr_X
+
+        obtain ⟨contr, h_contr_lt, h_contr_notXY⟩ := h_prefix_zero
+        apply h_contr_notXY
+        rw [ax_add]
+        constructor
+        · apply lt_trans h_contr_lt h_y_lt
+        · rw [Xor'.true2 (h_Y_prefix_one contr h_contr_lt)]
+          rw [not_xor]
+          rw [<- not_iff_not, iff_true_left]
+          apply h_Carry_prefix_zero contr h_contr_lt
+          apply h_X_prefix_zero contr h_contr_lt
+      · intro h_Carry
+        obtain ⟨m, hm⟩ := exists_lowest_order_zero Y (num := num)
+        have hm_le_y : m ≤ y := by
+          by_contra h
+          exact h_notY (aux1 hm (lt_of_not_ge h))
+        rcases eq_or_lt_of_le hm_le_y with rfl | hm_lt_y
+        · exact succ_bit_eq hm
+        · exfalso
+          unfold Carry at h_Carry
+          obtain ⟨k, hk_lt_y, hkX, hkSY, hkprop⟩ := h_Carry
+          have hm_le_k : m ≤ k := by
+            by_contra h_mk
+            exact (succ_bit_lt hm k (lt_of_not_ge h_mk)) hkSY
+          have hk_le_m : k ≤ m := by
+            by_contra h_km
+            have hm_lt_k : m < k := lt_of_not_ge h_km
+            have hkY : k ∈ Y := (succ_bit_gt hm k hm_lt_k).1 hkSY
+            apply h_notC
+            refine ⟨k, hk_lt_y, hkX, hkY, ?_⟩
+            intro j hj_lt_y hk_lt_j
+            rcases hkprop j hj_lt_y hk_lt_j with hjX | hjSY
+            · exact Or.inl hjX
+            · exact Or.inr ((succ_bit_gt hm j (lt_trans hm_lt_k hk_lt_j)).1 hjSY)
+          have hk_eq_m : k = m := by
+            apply _root_.le_antisymm <;> assumption
+          have hmX : m ∈ X := by
+            simpa [hk_eq_m] using hkX
+          have h_or_after_m : ∀ j, m < j -> j < y -> j ∈ X ∨ j ∈ Y := by
+            intro j hm_lt_j hj_lt_y
+            rcases hkprop j hj_lt_y (by simpa [hk_eq_m] using hm_lt_j) with hjX | hjSY
+            · exact Or.inl hjX
+            · exact Or.inr ((succ_bit_gt hm j hm_lt_j).1 hjSY)
+          have h_X_prefix_zero : ∀ j < m, j ∉ X := by
+            intro j hj_lt_m h_jX
+            apply h_notC
+            refine ⟨j, lt_trans hj_lt_m hm_lt_y, h_jX, hm.2.2 j hj_lt_m, ?_⟩
+            intro z hz_lt_y hj_lt_z
+            by_cases hz_lt_m : z < m
+            · exact Or.inr (hm.2.2 z hz_lt_m)
+            · have hm_le_z : m ≤ z := le_of_not_gt hz_lt_m
+              rcases eq_or_lt_of_le hm_le_z with hzm | hm_lt_z
+              · exact Or.inl (by simpa [hzm] using hmX)
+              · exact h_or_after_m z hm_lt_z hz_lt_y
+          have h_Carry_le_m_zero : ∀ j ≤ m, ¬ Carry j X Y := by
+            intro j hj_le_m h_jC
+            unfold Carry at h_jC
+            obtain ⟨c, hc_lt_j, hcX, _, _⟩ := h_jC
+            exact h_X_prefix_zero c (lt_of_lt_of_le hc_lt_j hj_le_m) hcX
+          have carry_to_y_from_after_m :
+              ∀ {j : num}, m < j -> j < y -> Carry j X Y -> Carry y X Y := by
+            intro j hm_lt_j hj_lt_y h_jC
+            unfold Carry at h_jC ⊢
+            obtain ⟨c, hc_lt_j, hcX, hcY, hcprop⟩ := h_jC
+            refine ⟨c, lt_trans hc_lt_j hj_lt_y, hcX, hcY, ?_⟩
+            intro z hz_lt_y hc_lt_z
+            by_cases hz_lt_j : z < j
+            · exact hcprop z hz_lt_j hc_lt_z
+            · have hj_le_z : j ≤ z := le_of_not_gt hz_lt_j
+              exact h_or_after_m z (lt_of_lt_of_le hm_lt_j hj_le_z) hz_lt_y
+          obtain ⟨contr, h_contr_lt, h_contr_notXY⟩ := h_prefix_zero
+          apply h_contr_notXY
+          rw [ax_add]
+          constructor
+          · exact lt_trans h_contr_lt h_y_lt
+          · rcases lt_trichotomy contr m with h_contr_lt_m | h_contr_eq_m | h_m_lt_contr
+            · rw [xor3_split]
+              right
+              left
+              exact ⟨h_X_prefix_zero contr h_contr_lt_m, hm.2.2 contr h_contr_lt_m,
+                h_Carry_le_m_zero contr (le_of_lt h_contr_lt_m)⟩
+            · rw [h_contr_eq_m, xor3_split]
+              left
+              exact ⟨hmX, hm.2.1, h_Carry_le_m_zero m le_rfl⟩
+            · have h_contr_or : contr ∈ X ∨ contr ∈ Y := h_or_after_m contr h_m_lt_contr h_contr_lt
+              have h_contr_notboth : ¬ (contr ∈ X ∧ contr ∈ Y) := by
+                intro h_both
+                apply h_notC
+                refine ⟨contr, h_contr_lt, h_both.1, h_both.2, ?_⟩
+                intro z hz_lt_y h_contr_lt_z
+                exact h_or_after_m z (lt_trans h_m_lt_contr h_contr_lt_z) hz_lt_y
+              have h_contr_notCarry : ¬ Carry contr X Y := by
+                intro h_contr_Carry
+                apply h_notC
+                exact carry_to_y_from_after_m h_m_lt_contr h_contr_lt h_contr_Carry
+              rcases h_contr_or with h_contr_X | h_contr_Y
+              · rw [xor3_split]
+                left
+                exact ⟨h_contr_X, fun hY => h_contr_notboth ⟨h_contr_X, hY⟩, h_contr_notCarry⟩
+              · rw [xor3_split]
+                right
+                left
+                exact ⟨fun hX => h_contr_notboth ⟨hX, h_contr_Y⟩, h_contr_Y, h_contr_notCarry⟩
+    · sorry
+    · sorry
+    · sorry
   · sorry
-  · sorry
-  · sorry
-  · sorry
+
+
+
 
 
 lemma succ_len_eq : ∀ {X Y : str}, len (X + succ Y) = (len (succ (X + Y)) : num) := by
