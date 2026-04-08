@@ -511,7 +511,35 @@ by
     rhs; intro;
     lhs;
 
-  sorry
+  -- The below was finished by `gpt-5.3-codex medium`.
+
+  unfold Formula.Realize
+  constructor
+  · intro h
+    rcases h with ⟨x, hx⟩
+    rcases hx with ⟨hxle, hphi⟩
+    have henv :
+        ((Sum.elim (Sum.elim v (fun _ : Vars1 n1 => x)) (default : Fin 0 → M))
+          ∘ (Sum.map (Sum.inl : a → a ⊕ Vars1 n1) (id : Fin 0 → Fin 0))) = Sum.elim v Fin.elim0 := by
+      funext y
+      cases y with
+      | inl y => simp
+      | inr y => exact Fin.elim0 y
+    refine ⟨x, ?_, hphi⟩
+    simpa only [peano.instLEOfStructure, Sum.elim_inl, Sum.elim_inr, Term.realize_relabel,
+      Sum.elim_map, henv] using hxle
+  · intro h
+    rcases h with ⟨x, hxle, hphi⟩
+    have henv :
+        ((Sum.elim (Sum.elim v (fun _ : Vars1 n1 => x)) (default : Fin 0 → M))
+          ∘ (Sum.map (Sum.inl : a → a ⊕ Vars1 n1) (id : Fin 0 → Fin 0))) = Sum.elim v Fin.elim0 := by
+      funext y
+      cases y with
+      | inl y => simp
+      | inr y => exact Fin.elim0 y
+    refine ⟨x, ⟨?_, hphi⟩⟩
+    simpa only [peano.instLEOfStructure, Sum.elim_inl, Sum.elim_inr, Term.realize_relabel,
+      Sum.elim_map, henv] using hxle
 
 @[delta0_simps]
 lemma realize_iBdAll'.Vars1
