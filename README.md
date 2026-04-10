@@ -1,17 +1,14 @@
 # Formalization of bounded arithmetic
 In this project, I explore a way to formalize the results from the field of bounded arithmetic, most notably from the book [Logical Foundations of Proof Complexity](https://www2.karlin.mff.cuni.cz/~krajicek/cook-nguyen.pdf) from 2010 by Stephen Cook and Phuong Nguyen.
 
+The design and motivation behind this project was presented at [AITP 2025](https://github.com/ruplet/presentation-aitp2025) in Aussois, France.
+
 If successful, it could contribute towards:
 - providing a sensible way to certify computational complexity bounds of computer programs
 - providing a new way of extracting computer programs from mathematical theorems
 - perhaps getting a few logicians interested in formal verification
 
 Please see [the $I\Delta_0$ file](BoundedArithmetic/IDelta0.lean) for a demonstration.
-
-For motivations and a brief introduction to why it is a promising direction, please see
-- my [presentation](aitp-presentation.pdf) for [AITP 2025](https://aitp-conference.org/2025/)
-- the [abstract](aitp-abstract.md) I had sent
-- the [reviews](aitp-reviews.md) it has received
 
 ## Current todo list
 - we could probably do without modifying the mathlib.ModelTheory library (which now, modified, is in BoundedArithmetic/BoundedModelTheory)
