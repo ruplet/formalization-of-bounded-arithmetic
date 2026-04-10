@@ -17,3 +17,6 @@ import BoundedArithmetic.Semantics
 import BoundedArithmetic.SimpRules
 import BoundedArithmetic.Syntax
 import BoundedArithmetic.V0
+import BoundedArithmetic.V0StrAddComm
+import BoundedArithmetic.V0StrAddAssoc
+import BoundedArithmetic.V0StrSuccAssoc
